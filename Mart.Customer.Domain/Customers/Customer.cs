@@ -58,7 +58,7 @@ public sealed class Customer
         ModifiedOn = modifiedOn;
     }
 
-    public int CustomerId { get; private set; }
+    public long CustomerId { get; private set; }
 
     public string? CustomerCode { get; private set; }
 

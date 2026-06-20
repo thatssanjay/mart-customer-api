@@ -1,7 +1,7 @@
 namespace Mart.Customer.Application.Customers.Dtos;
 
 public sealed record CustomerDto(
-    int CustomerId,
+    long CustomerId,
     string? CustomerCode,
     string? FirstName,
     string? LastName,
