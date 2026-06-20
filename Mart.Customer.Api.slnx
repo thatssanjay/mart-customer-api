@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Mart.Customer.Api/Mart.Customer.Api.csproj" />
+  <Project Path="Mart.Customer.Application/Mart.Customer.Application.csproj" />
+  <Project Path="Mart.Customer.Domain/Mart.Customer.Domain.csproj" />
+  <Project Path="Mart.Customer.Infrastructure/Mart.Customer.Infrastructure.csproj" />
+  <Project Path="Mart.Customer.Persistence/Mart.Customer.Persistence.csproj" />
+  <Project Path="Mart.Customer.Shared/Mart.Customer.Shared.csproj" />
+</Solution>
