@@ -13,28 +13,21 @@ internal sealed class CustomerRepository : ICustomerRepository
         _dbContext = dbContext;
     }
 
-    public async Task<CustomerEntity?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CustomerEntity?> GetByMobileNumberAsync(string mobileNumber, CancellationToken cancellationToken = default)
     {
+        var normalizedMobileNumber = mobileNumber.Trim();
+
         return await _dbContext.Customers
             .AsNoTracking()
-            .FirstOrDefaultAsync(customer => customer.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(customer => customer.MobileNumber == normalizedMobileNumber, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<CustomerEntity>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByMobileNumberAsync(string mobileNumber, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Customers
-            .AsNoTracking()
-            .OrderBy(customer => customer.FirstName)
-            .ThenBy(customer => customer.LastName)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
-    {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedMobileNumber = mobileNumber.Trim();
 
         return await _dbContext.Customers
-            .AnyAsync(customer => customer.Email == normalizedEmail, cancellationToken);
+            .AnyAsync(customer => customer.MobileNumber == normalizedMobileNumber, cancellationToken);
     }
 
     public async Task AddAsync(CustomerEntity customer, CancellationToken cancellationToken = default)

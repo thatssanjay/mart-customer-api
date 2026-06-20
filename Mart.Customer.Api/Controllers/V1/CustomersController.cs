@@ -1,8 +1,7 @@
 using Asp.Versioning;
 using Mart.Customer.Api.Contracts.Customers;
 using Mart.Customer.Application.Customers.Commands.CreateCustomer;
-using Mart.Customer.Application.Customers.Queries.GetCustomerById;
-using Mart.Customer.Application.Customers.Queries.GetCustomers;
+using Mart.Customer.Application.Customers.Queries.GetCustomerByMobile;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,17 +19,10 @@ public sealed class CustomersController : ControllerBase
         _sender = sender;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetCustomers(CancellationToken cancellationToken)
+    [HttpGet("by-mobile/{mobileNumber}")]
+    public async Task<IActionResult> GetCustomerByMobileNumber(string mobileNumber, CancellationToken cancellationToken)
     {
-        var customers = await _sender.Send(new GetCustomersQuery(), cancellationToken);
-        return Ok(customers);
-    }
-
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetCustomerById(Guid id, CancellationToken cancellationToken)
-    {
-        var customer = await _sender.Send(new GetCustomerByIdQuery(id), cancellationToken);
+        var customer = await _sender.Send(new GetCustomerByMobileQuery(mobileNumber), cancellationToken);
         return customer is null ? NotFound() : Ok(customer);
     }
 
@@ -41,15 +33,34 @@ public sealed class CustomersController : ControllerBase
     {
         var customer = await _sender.Send(
             new CreateCustomerCommand(
+                request.CustomerCode,
                 request.FirstName,
                 request.LastName,
+                request.DisplayName,
+                request.MobileNumber,
                 request.Email,
-                request.PhoneNumber),
+                request.Gender,
+                request.DateOfBirth,
+                request.AddressLine1,
+                request.AddressLine2,
+                request.City,
+                request.State,
+                request.Country,
+                request.PinCode,
+                request.PreferredLanguage,
+                request.RegistrationSource,
+                request.IsMobileVerified,
+                request.IsEmailVerified,
+                request.IsActive,
+                request.IsBlocked,
+                request.LastLoginOn,
+                request.CreatedOn,
+                request.ModifiedOn),
             cancellationToken);
 
         return CreatedAtAction(
-            nameof(GetCustomerById),
-            new { id = customer.Id, version = "1.0" },
+            nameof(GetCustomerByMobileNumber),
+            new { mobileNumber = customer.MobileNumber, version = "1.0" },
             customer);
     }
 }
