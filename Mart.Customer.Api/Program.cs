@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
@@ -90,8 +91,15 @@ builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration)
     .AddPersistence(builder.Configuration);
+builder.WebHost.UseUrls(
+    "http://192.168.1.6:5253",
+    "http://0.0.0.0:5253"
+);
 
 var app = builder.Build();
+
+    app.UseSwagger();
+    app.UseSwaggerUI();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -119,4 +127,5 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
+app.MapGet("/test", () => "API Working");
 app.Run();

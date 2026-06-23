@@ -23,9 +23,13 @@ public sealed class CustomersController : ControllerBase
     public async Task<IActionResult> GetCustomerByMobileNumber(string mobileNumber, CancellationToken cancellationToken)
     {
         var customer = await _sender.Send(new GetCustomerByMobileQuery(mobileNumber), cancellationToken);
-        return customer is null ? NotFound() : Ok(customer);
+        return customer is null ? NoContent() : Ok(customer);
     }
-
+    [HttpGet("test")]
+    public IActionResult Test()
+    {
+        return Ok("Customer Controller Working");
+    }
     [HttpPost]
     public async Task<IActionResult> CreateCustomer(
         CreateCustomerRequest request,
