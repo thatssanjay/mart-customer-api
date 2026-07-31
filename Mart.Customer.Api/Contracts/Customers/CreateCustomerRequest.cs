@@ -1,26 +1,19 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+
 namespace Mart.Customer.Api.Contracts.Customers;
 
-public sealed record CreateCustomerRequest(
-    string? CustomerCode,
-    string? FirstName,
-    string? LastName,
-    string? DisplayName,
-    string MobileNumber,
-    string? Email,
-    string? Gender,
-    DateTime? DateOfBirth,
-    string? AddressLine1,
-    string? AddressLine2,
-    string? City,
-    string? State,
-    string? Country,
-    string? PinCode,
-    string? PreferredLanguage,
-    string? RegistrationSource,
-    bool IsMobileVerified,
-    bool IsEmailVerified,
-    bool IsActive,
-    bool IsBlocked,
-    DateTime? LastLoginOn,
-    DateTime? CreatedOn,
-    DateTime? ModifiedOn);
+public sealed class CreateCustomerRequest
+{
+    [Required]
+    public string? DisplayName { get; init; }
+
+    [Required]
+    public string? MobileNumber { get; init; }
+
+    [DefaultValue(nameof(Email))]
+    public string? Email { get; init; } = nameof(Email);
+
+    [DefaultValue(nameof(AddressLine1))]
+    public string? AddressLine1 { get; init; } = nameof(AddressLine1);
+}

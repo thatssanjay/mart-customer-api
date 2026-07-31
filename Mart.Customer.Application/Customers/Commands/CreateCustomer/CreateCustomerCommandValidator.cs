@@ -16,6 +16,7 @@ public sealed class CreateCustomerCommandValidator : AbstractValidator<CreateCus
             .MaximumLength(100);
 
         RuleFor(command => command.DisplayName)
+            .NotEmpty()
             .MaximumLength(200);
 
         RuleFor(command => command.MobileNumber)
@@ -25,7 +26,7 @@ public sealed class CreateCustomerCommandValidator : AbstractValidator<CreateCus
         RuleFor(command => command.Email)
             .EmailAddress()
             .MaximumLength(256)
-            .When(command => !string.IsNullOrWhiteSpace(command.Email));
+            .When(command => !string.IsNullOrWhiteSpace(command.Email) && command.Email != "Email");
 
         RuleFor(command => command.Gender)
             .MaximumLength(30);

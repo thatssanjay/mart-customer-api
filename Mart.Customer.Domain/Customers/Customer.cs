@@ -157,6 +157,20 @@ public sealed class Customer
             modifiedOn);
     }
 
+    public void UpdateDetails(
+        string displayName,
+        string mobileNumber,
+        string? email,
+        string? addressLine1,
+        DateTime modifiedOn)
+    {
+        DisplayName = NormalizeRequired(displayName, "Display name is required.");
+        MobileNumber = NormalizeRequired(mobileNumber, "Mobile number is required.");
+        Email = Normalize(email)?.ToLowerInvariant();
+        AddressLine1 = Normalize(addressLine1);
+        ModifiedOn = modifiedOn;
+    }
+
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();

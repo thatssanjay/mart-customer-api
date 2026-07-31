@@ -1,6 +1,7 @@
 using Mapster;
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Customers.Dtos;
+using Mart.Customer.Application.Common.Utilities;
 using Mart.Customer.Domain.Common;
 using MediatR;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
@@ -23,11 +24,16 @@ public sealed class CreateCustomerCommandHandler : IRequestHandler<CreateCustome
         var mobileExists = await _customerRepository.ExistsByMobileNumberAsync(request.MobileNumber, cancellationToken);
         if (mobileExists)
         {
-            throw new DomainException("A customer with the same mobile number already exists.");
+            throw new DomainException("Duplicate customer.");
         }
 
+        var customerCode = await GenerateUniqueCustomerCodeAsync(
+            request.DisplayName!,
+            request.MobileNumber,
+            cancellationToken);
+
         var customer = CustomerEntity.Create(
-            request.CustomerCode,
+            customerCode,
             request.FirstName,
             request.LastName,
             request.DisplayName,
@@ -48,12 +54,31 @@ public sealed class CreateCustomerCommandHandler : IRequestHandler<CreateCustome
             request.IsActive,
             request.IsBlocked,
             request.LastLoginOn,
-            request.CreatedOn,
+            DateTime.UtcNow,
             request.ModifiedOn);
 
         await _customerRepository.AddAsync(customer, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return customer.Adapt<CustomerDto>();
+    }
+
+    private async Task<string> GenerateUniqueCustomerCodeAsync(
+        string displayName,
+        string mobileNumber,
+        CancellationToken cancellationToken)
+    {
+        const int maximumAttempts = 10;
+
+        for (var attempt = 0; attempt < maximumAttempts; attempt++)
+        {
+            var code = ReferenceCodeGenerator.Generate(displayName, mobileNumber);
+            if (!await _customerRepository.ExistsByCustomerCodeAsync(code, cancellationToken))
+            {
+                return code;
+            }
+        }
+
+        throw new DomainException("Unable to generate a unique customer code.");
     }
 }
