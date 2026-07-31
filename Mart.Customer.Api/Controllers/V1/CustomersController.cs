@@ -1,13 +1,17 @@
 using Asp.Versioning;
 using Mart.Customer.Api.Contracts.Customers;
 using Mart.Customer.Application.Customers.Commands.CreateCustomer;
+using Mart.Customer.Application.Customers.Commands.UpdateCustomer;
 using Mart.Customer.Application.Customers.Queries.GetCustomerByMobile;
+using Mart.Customer.Application.Customers.Queries.GetCustomers;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mart.Customer.Api.Controllers.V1;
 
 [ApiController]
+// [Authorize]
 [ApiVersion(1.0)]
 [Route("api/v{version:apiVersion}/customers")]
 public sealed class CustomersController : ControllerBase
@@ -19,6 +23,21 @@ public sealed class CustomersController : ControllerBase
         _sender = sender;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetCustomers(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? displayName = null,
+        [FromQuery] string? mobileNumber = null,
+        CancellationToken cancellationToken = default)
+    {
+        var customers = await _sender.Send(
+            new GetCustomersQuery(pageNumber, pageSize, displayName, mobileNumber),
+            cancellationToken);
+
+        return Ok(customers);
+    }
+
     [HttpGet("by-mobile/{mobileNumber}")]
     public async Task<IActionResult> GetCustomerByMobileNumber(string mobileNumber, CancellationToken cancellationToken)
     {
@@ -26,41 +45,61 @@ public sealed class CustomersController : ControllerBase
         return customer is null ? NotFound() : Ok(customer);
     }
 
-    [HttpPost]
+    [HttpPost("CreateCustomer")]
     public async Task<IActionResult> CreateCustomer(
         CreateCustomerRequest request,
         CancellationToken cancellationToken)
     {
+        var mobileNumber = request.MobileNumber ?? string.Empty;
         var customer = await _sender.Send(
             new CreateCustomerCommand(
-                request.CustomerCode,
-                request.FirstName,
-                request.LastName,
+                null,
+                "FirstName",
+                "LastName",
                 request.DisplayName,
-                request.MobileNumber,
+                mobileNumber,
                 request.Email,
-                request.Gender,
-                request.DateOfBirth,
+                "Gender",
+                null,
                 request.AddressLine1,
-                request.AddressLine2,
-                request.City,
-                request.State,
-                request.Country,
-                request.PinCode,
-                request.PreferredLanguage,
-                request.RegistrationSource,
-                request.IsMobileVerified,
-                request.IsEmailVerified,
-                request.IsActive,
-                request.IsBlocked,
-                request.LastLoginOn,
-                request.CreatedOn,
-                request.ModifiedOn),
+                "AddressLine2",
+                "City",
+                "State",
+                "Country",
+                "PinCode",
+                "PreferredLanguage",
+                "RegistrationSource",
+                false,
+                false,
+                true,
+                false,
+                null,
+                null),
             cancellationToken);
 
         return CreatedAtAction(
             nameof(GetCustomerByMobileNumber),
             new { mobileNumber = customer.MobileNumber, version = "1.0" },
             customer);
+    }
+
+    [HttpPut("UpdateCustomer/{customerId:long}")]
+    public async Task<IActionResult> UpdateCustomer(
+        long customerId,
+        UpdateCustomerRequest request,
+        CancellationToken cancellationToken)
+    {
+        var customer = await _sender.Send(
+            new UpdateCustomerCommand(
+                customerId,
+                request.DisplayName,
+                request.MobileNumber ?? string.Empty,
+                request.Email,
+                request.AddressLine1),
+            cancellationToken);
+
+        return customer is null
+            ? NotFound(new { message = "Customer not found." })
+            : Ok(customer);
     }
 }

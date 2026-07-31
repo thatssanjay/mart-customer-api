@@ -17,6 +17,9 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString));
 
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<ICashbackConfigurationRepository, CashbackConfigurationRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IInternalUserRepository, InternalUserRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;

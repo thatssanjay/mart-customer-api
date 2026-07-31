@@ -25,5 +25,4 @@ public sealed record CreateCustomerCommand(
     bool IsActive,
     bool IsBlocked,
     DateTime? LastLoginOn,
-    DateTime? CreatedOn,
     DateTime? ModifiedOn) : IRequest<CustomerDto>;

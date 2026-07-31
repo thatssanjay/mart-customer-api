@@ -6,6 +6,7 @@ using Mart.Customer.Application;
 using Mart.Customer.Infrastructure;
 using Mart.Customer.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
@@ -24,7 +25,18 @@ builder.Host.UseSerilog((context, services, configuration) =>
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter a valid JWT bearer token."
+    });
+});
 
 builder.Services
     .AddApiVersioning(options =>
