@@ -4,6 +4,7 @@ using Mart.Customer.Application.Customers.Commands.CreateCustomer;
 using Mart.Customer.Application.Customers.Commands.UpdateCustomer;
 using Mart.Customer.Application.Customers.Queries.GetCustomerByMobile;
 using Mart.Customer.Application.Customers.Queries.GetCustomers;
+using Mart.Customer.Application.Customers.Queries.SearchCustomers;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mart.Customer.Api.Controllers.V1;
 
 [ApiController]
-// [Authorize]
+[Authorize]
 [ApiVersion(1.0)]
 [Route("api/v{version:apiVersion}/customers")]
 public sealed class CustomersController : ControllerBase
@@ -43,6 +44,15 @@ public sealed class CustomersController : ControllerBase
     {
         var customer = await _sender.Send(new GetCustomerByMobileQuery(mobileNumber), cancellationToken);
         return customer is null ? NotFound() : Ok(customer);
+    }
+
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchCustomers(
+        [FromQuery] string? search,
+        CancellationToken cancellationToken)
+    {
+        var customers = await _sender.Send(new SearchCustomersQuery(search), cancellationToken);
+        return Ok(customers);
     }
 
     [HttpPost("CreateCustomer")]

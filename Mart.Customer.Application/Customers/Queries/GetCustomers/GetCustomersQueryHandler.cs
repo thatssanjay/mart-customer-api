@@ -31,6 +31,7 @@ public sealed class GetCustomersQueryHandler
                 customer.CustomerCode,
                 customer.FirstName,
                 customer.LastName,
+                customer.DisplayName,
                 customer.MobileNumber,
                 customer.Email,
                 customer.Gender,

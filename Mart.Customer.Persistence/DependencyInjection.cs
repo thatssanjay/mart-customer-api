@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ICashbackConfigurationRepository, CashbackConfigurationRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<ICustomerCartRepository, CustomerCartRepository>();
         services.AddScoped<IInternalUserRepository, InternalUserRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

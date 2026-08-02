@@ -1,0 +1,40 @@
+namespace Mart.Customer.Application.Carts.Dtos;
+
+public sealed record CartDetailsDto(
+    long CustomerCartId,
+    long CustomerId,
+    long FranchiseId,
+    long MartStoreId,
+    string CartNumber,
+    string CartStatus,
+    int TotalItemCount,
+    decimal GrossAmount,
+    decimal DiscountAmount,
+    decimal GSTAmount,
+    decimal NetAmount,
+    decimal RewardPointsToRedeem,
+    decimal RedeemAmount,
+    decimal FinalPayableAmount,
+    long AddedByCashierId,
+    DateTime? CustomerApprovedOn,
+    DateTime? PaidOn,
+    DateTime? CancelledOn,
+    string? Remarks,
+    DateTime CreatedOn,
+    DateTime? ModifiedOn,
+    IReadOnlyList<CartItemDetailsDto> Items);
+
+public sealed record CartItemDetailsDto(
+    long CustomerCartItemId,
+    long CustomerCartId,
+    long ProductId,
+    string ProductNameSnapshot,
+    decimal Quantity,
+    decimal UnitPrice,
+    decimal MRP,
+    decimal DiscountAmount,
+    decimal GSTPercent,
+    decimal GSTAmount,
+    decimal LineTotal,
+    long AddedByCashierId,
+    DateTime AddedOn);

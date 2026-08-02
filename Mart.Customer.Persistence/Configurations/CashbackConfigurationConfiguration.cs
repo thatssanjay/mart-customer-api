@@ -9,7 +9,7 @@ public sealed class CashbackConfigurationConfiguration
 {
     public void Configure(EntityTypeBuilder<CashbackConfiguration> builder)
     {
-        builder.ToTable("cashbackconfiguration", "mart");
+        builder.ToTable("CashbackSettings", "mart");
 
         builder.HasKey(setting => setting.CashbackSettingId);
 

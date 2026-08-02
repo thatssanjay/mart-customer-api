@@ -19,6 +19,11 @@ public sealed class GetCustomerByMobileQueryHandler : IRequestHandler<GetCustome
 
         return customer is null
             ? null
-            : new CustomerContactDto(customer.MobileNumber, customer.Email, customer.FirstName, customer.LastName);
+            : new CustomerContactDto(
+                customer.CustomerId,
+                customer.MobileNumber,
+                customer.Email,
+                customer.FirstName,
+                customer.LastName);
     }
 }

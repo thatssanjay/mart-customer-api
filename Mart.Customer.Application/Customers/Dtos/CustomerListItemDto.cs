@@ -5,6 +5,7 @@ public sealed record CustomerListItemDto(
     string? CustomerCode,
     string? FirstName,
     string? LastName,
+    string? DisplayName,
     string MobileNumber,
     string? EmailId,
     string? Gender,

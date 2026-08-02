@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Mart.Customer.Api.Auth;
 using Mart.Customer.Api.Contracts.Auth;
 using Mart.Customer.Application.Auth.Commands.GenerateCustomerToken;
 using Mart.Customer.Application.Auth.Commands.GenerateInternalUserToken;
@@ -37,5 +38,20 @@ public sealed class AuthController : ControllerBase
         };
 
         return Ok(token);
+    }
+
+    [Authorize]
+    [HttpGet("token/validate")]
+    public IActionResult ValidateToken([FromServices] IMartUserContext currentUser)
+    {
+        return Ok(new
+        {
+            isValid = true,
+            userId = currentUser.UserId,
+            franchiseId = currentUser.FranchiseId,
+            storeId = currentUser.StoreId,
+            userName = currentUser.UserName,
+            role = currentUser.Role
+        });
     }
 }

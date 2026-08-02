@@ -1,4 +1,5 @@
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
+using Mart.Customer.Application.Customers.Dtos;
 
 namespace Mart.Customer.Application.Abstractions.Data;
 
@@ -13,6 +14,11 @@ public interface ICustomerRepository
         int pageSize,
         string? displayName,
         string? mobileNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CustomerLookupDto>> SearchAsync(
+        string search,
+        int maximumResults,
         CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByMobileNumberAsync(string mobileNumber, CancellationToken cancellationToken = default);

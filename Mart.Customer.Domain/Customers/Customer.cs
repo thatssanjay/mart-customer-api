@@ -171,6 +171,18 @@ public sealed class Customer
         ModifiedOn = modifiedOn;
     }
 
+    public void UpdateProfile(
+        string displayName,
+        string? email,
+        string? addressLine1,
+        DateTime modifiedOn)
+    {
+        DisplayName = NormalizeRequired(displayName, "Display name is required.");
+        Email = Normalize(email)?.ToLowerInvariant();
+        AddressLine1 = Normalize(addressLine1);
+        ModifiedOn = modifiedOn;
+    }
+
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();

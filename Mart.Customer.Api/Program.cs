@@ -1,11 +1,14 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
+using Mart.Customer.Api.Auth;
 using Mart.Customer.Api.Middleware;
+using Mart.Customer.Api.OpenApi;
 using Mart.Customer.Application;
 using Mart.Customer.Infrastructure;
 using Mart.Customer.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -27,6 +30,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.OperationFilter<AllowAnonymousOperationFilter>();
+
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -34,7 +39,12 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Enter a valid JWT bearer token."
+        Description = "Paste the JWT only. Do not include the 'Bearer ' prefix."
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
     });
 });
 
@@ -77,11 +87,20 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IMartUserContext, MartUserContext>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         var jwtSettings = builder.Configuration.GetSection("Jwt");
         var signingKey = jwtSettings["SigningKey"] ?? "replace-this-development-key-with-a-secure-secret";
+        var martSigningKey = jwtSettings["MartSigningKey"];
+        var signingKeys = new[] { signingKey, martSigningKey }
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.Ordinal)
+            .Select(key => new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key!)))
+            .ToArray();
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -89,13 +108,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey))
+            ValidIssuers = new[] { jwtSettings["Issuer"], jwtSettings["MartIssuer"] }
+                .Where(value => !string.IsNullOrWhiteSpace(value)),
+            ValidAudiences = new[] { jwtSettings["Audience"], jwtSettings["MartAudience"] }
+                .Where(value => !string.IsNullOrWhiteSpace(value)),
+            IssuerSigningKeys = signingKeys,
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(MartAuthorizationPolicies.MobileCustomer, policy =>
+        policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(MartTokenClaims.LoginType, "customer"));
+
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 builder.Services.AddHealthChecks();
 
 builder.Services

@@ -1,4 +1,5 @@
 using Mart.Customer.Application.Abstractions.Data;
+using Mart.Customer.Application.Customers.Dtos;
 using Microsoft.EntityFrameworkCore;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
 
@@ -59,6 +60,28 @@ internal sealed class CustomerRepository : ICustomerRepository
             .ToListAsync(cancellationToken);
 
         return (customers, totalCount);
+    }
+
+    public async Task<IReadOnlyList<CustomerLookupDto>> SearchAsync(
+        string search,
+        int maximumResults,
+        CancellationToken cancellationToken = default)
+    {
+        var searchPattern = $"%{search.Trim()}%";
+
+        return await _dbContext.Customers
+            .AsNoTracking()
+            .Where(customer =>
+                (customer.DisplayName != null &&
+                 EF.Functions.Like(customer.DisplayName, searchPattern)) ||
+                EF.Functions.Like(customer.MobileNumber, searchPattern))
+            .OrderBy(customer => customer.DisplayName)
+            .ThenBy(customer => customer.CustomerId)
+            .Take(maximumResults)
+            .Select(customer => new CustomerLookupDto(
+                customer.DisplayName,
+                customer.MobileNumber))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByMobileNumberAsync(string mobileNumber, CancellationToken cancellationToken = default)

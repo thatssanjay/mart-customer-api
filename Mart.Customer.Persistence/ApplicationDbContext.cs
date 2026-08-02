@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mart.Customer.Persistence.Auth;
 using Mart.Customer.Domain.Cashback;
 using Mart.Customer.Domain.Inventory;
+using Mart.Customer.Domain.Carts;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
 
 namespace Mart.Customer.Persistence;
@@ -18,6 +19,10 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<CashbackConfiguration> CashbackConfigurations => Set<CashbackConfiguration>();
 
     public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<CustomerCart> CustomerCarts => Set<CustomerCart>();
+
+    public DbSet<CustomerCartItem> CustomerCartItems => Set<CustomerCartItem>();
 
     public DbSet<UserMasterEntity> Users => Set<UserMasterEntity>();
 
