@@ -11,4 +11,6 @@ public interface IMartUserContext
     string? UserName { get; }
 
     string? Role { get; }
+
+    string? LoginType { get; }
 }

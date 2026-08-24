@@ -7,6 +7,7 @@ using Mart.Customer.Api.OpenApi;
 using Mart.Customer.Application;
 using Mart.Customer.Infrastructure;
 using Mart.Customer.Persistence;
+using Mart.Customer.Shared.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi;
@@ -164,3 +165,5 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+public partial class Program;

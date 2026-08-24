@@ -21,6 +21,8 @@ public sealed class GetCustomerCartsQueryHandler
         var carts = await _cartRepository.GetByCustomerAndStatusAsync(
             request.CustomerId,
             request.CartStatus!.Trim(),
+            request.FranchiseId,
+            request.StoreId,
             cancellationToken);
 
         return carts.Select(cart => new CartDetailsDto(

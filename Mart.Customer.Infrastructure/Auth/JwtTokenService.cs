@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Mart.Customer.Application.Abstractions.Auth;
 using Mart.Customer.Application.Auth.Dtos;
+using Mart.Customer.Shared.Auth;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -29,16 +30,19 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new(ClaimTypes.NameIdentifier, subject.UserId),
             new(ClaimTypes.Role, subject.Role),
-            new("userId", subject.UserId),
-            new("role", subject.Role),
+            new(MartTokenClaims.UserId, subject.UserId),
+            new(MartTokenClaims.Role, subject.Role),
             new("expText", expiryText),
-            new("loginType", subject.LoginType)
+            new(MartTokenClaims.LoginType, subject.LoginType)
         };
 
         if (!string.IsNullOrWhiteSpace(subject.Name))
         {
             claims.Add(new Claim(ClaimTypes.Name, subject.Name));
-            claims.Add(new Claim("name", subject.Name));
+            if (!subject.Claims.ContainsKey(MartTokenClaims.UserName))
+            {
+                claims.Add(new Claim(MartTokenClaims.UserName, subject.Name));
+            }
         }
 
         foreach (var claim in subject.Claims)

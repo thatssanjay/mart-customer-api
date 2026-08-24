@@ -5,4 +5,5 @@
   <Project Path="Mart.Customer.Infrastructure/Mart.Customer.Infrastructure.csproj" />
   <Project Path="Mart.Customer.Persistence/Mart.Customer.Persistence.csproj" />
   <Project Path="Mart.Customer.Shared/Mart.Customer.Shared.csproj" />
+  <Project Path="Mart.Customer.Tests/Mart.Customer.Tests.csproj" />
 </Solution>

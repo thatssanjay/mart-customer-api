@@ -5,6 +5,8 @@ namespace Mart.Customer.Application.Abstractions.Data;
 
 public interface ICustomerRepository
 {
+    Task<bool> ExistsByIdAsync(long customerId, CancellationToken cancellationToken = default);
+
     Task<CustomerEntity?> GetByIdAsync(long customerId, CancellationToken cancellationToken = default);
 
     Task<CustomerEntity?> GetByMobileNumberAsync(string mobileNumber, CancellationToken cancellationToken = default);

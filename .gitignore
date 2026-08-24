@@ -6,6 +6,10 @@
 # dotenv files
 .env
 
+# Runtime-generated invoice documents and local instruction backup
+/Mart.Customer.Api/invoice-archive/
+/oldAGENTS.md
+
 # User-specific files
 *.rsuser
 *.suo

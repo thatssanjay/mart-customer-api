@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using Mart.Customer.Domain.Common;
+using Mart.Customer.Shared.Auth;
 
 namespace Mart.Customer.Api.Auth;
 
@@ -14,18 +15,32 @@ public sealed class MartUserContext : IMartUserContext
             ?? throw new InvalidOperationException("There is no active HTTP request.");
     }
 
-    public long UserId => GetRequiredLongClaim(ClaimTypes.NameIdentifier, MartTokenClaims.UserId, "userId");
+    public long UserId => GetRequiredLongClaim(
+        MartTokenClaims.UserId,
+        ClaimTypes.NameIdentifier,
+        MartTokenClaims.LegacyUserId,
+        MartTokenClaims.LegacyCamelCaseUserId);
 
     public long FranchiseId => GetRequiredLongClaim(
         MartTokenClaims.FranchiseId,
         MartTokenClaims.LegacyFranchieseId,
-        "franchiseId");
+        MartTokenClaims.LegacyCamelCaseFranchiseId);
 
-    public long StoreId => GetRequiredLongClaim(MartTokenClaims.StoreId, "storeId");
+    public long StoreId => GetRequiredLongClaim(MartTokenClaims.StoreId, MartTokenClaims.LegacyCamelCaseStoreId);
 
-    public string? UserName => _user.FindFirstValue(ClaimTypes.Name) ?? _user.FindFirstValue("User name");
+    public string? UserName =>
+        _user.FindFirstValue(MartTokenClaims.UserName) ??
+        _user.FindFirstValue(ClaimTypes.Name) ??
+        _user.FindFirstValue(MartTokenClaims.LegacyUserName) ??
+        _user.FindFirstValue(MartTokenClaims.LegacyCamelCaseUserName);
 
-    public string? Role => _user.FindFirstValue(ClaimTypes.Role) ?? _user.FindFirstValue(MartTokenClaims.UserRole);
+    public string? Role =>
+        _user.FindFirstValue(MartTokenClaims.Role) ??
+        _user.FindFirstValue(ClaimTypes.Role) ??
+        _user.FindFirstValue(MartTokenClaims.LegacyUserRole) ??
+        _user.FindFirstValue(MartTokenClaims.LegacyCamelCaseRole);
+
+    public string? LoginType => _user.FindFirstValue(MartTokenClaims.LoginType);
 
     private long GetRequiredLongClaim(params string[] claimTypes)
     {

@@ -31,7 +31,7 @@ public sealed class CreateCartCommandHandler : IRequestHandler<CreateCartCommand
         await _cartRepository.AddAsync(cart, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new CreatedCartDto(cart.CartNumber);
+        return new CreatedCartDto(cart.CustomerCartId, cart.CartNumber);
     }
 
     private async Task<string> GenerateUniqueCartNumberAsync(CancellationToken cancellationToken)

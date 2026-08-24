@@ -229,4 +229,37 @@ public sealed class CustomerCart
                 break;
         }
     }
+
+    public void Cancel(string? remarks, DateTime cancelledOn)
+    {
+        if (!string.Equals(CartStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+            PaidOn.HasValue)
+        {
+            throw new Common.DomainException("Only an active unpaid cart can be cancelled.");
+        }
+
+        CartStatus = "Cancelled";
+        CancelledOn = cancelledOn;
+        Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
+    }
+
+    public void MarkPaid(decimal redemptionAmount, DateTime paidOn)
+    {
+        if (!string.Equals(CartStatus, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Common.DomainException("Only an active cart can be checked out.");
+        }
+
+        if (redemptionAmount < 0 || redemptionAmount > NetAmount)
+        {
+            throw new Common.DomainException("Invalid checkout redemption amount.");
+        }
+
+        RewardPointsToRedeem = redemptionAmount;
+        RedeemAmount = redemptionAmount;
+        FinalPayableAmount = NetAmount - redemptionAmount;
+        CartStatus = "Paid";
+        PaidOn = paidOn;
+        ModifiedOn = paidOn;
+    }
 }

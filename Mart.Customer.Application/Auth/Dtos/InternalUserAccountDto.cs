@@ -6,4 +6,6 @@ public sealed record InternalUserAccountDto(
     string? DisplayName,
     string Role,
     string PasswordHash,
-    string PasswordSalt);
+    string PasswordSalt,
+    long? FranchiseId,
+    long? StoreId);

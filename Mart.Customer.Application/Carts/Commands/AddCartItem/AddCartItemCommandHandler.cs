@@ -1,5 +1,6 @@
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Carts.Dtos;
+using Mart.Customer.Application.Inventory.Services;
 using MediatR;
 
 namespace Mart.Customer.Application.Carts.Commands.AddCartItem;
@@ -7,13 +8,16 @@ namespace Mart.Customer.Application.Carts.Commands.AddCartItem;
 public sealed class AddCartItemCommandHandler : IRequestHandler<AddCartItemCommand, CreatedCartItemDto?>
 {
     private readonly ICustomerCartRepository _cartRepository;
+    private readonly IInventoryStockService _inventoryStockService;
     private readonly IUnitOfWork _unitOfWork;
 
     public AddCartItemCommandHandler(
         ICustomerCartRepository cartRepository,
+        IInventoryStockService inventoryStockService,
         IUnitOfWork unitOfWork)
     {
         _cartRepository = cartRepository;
+        _inventoryStockService = inventoryStockService;
         _unitOfWork = unitOfWork;
     }
 
@@ -31,6 +35,16 @@ public sealed class AddCartItemCommandHandler : IRequestHandler<AddCartItemComma
         {
             return null;
         }
+
+        var requestedCartQuantity = cart.Items
+            .Where(item => item.ProductId == request.ProductId)
+            .Sum(item => item.Quantity) + request.Quantity;
+        await _inventoryStockService.EnsureCartQuantityAvailableAsync(
+            request.ProductId,
+            request.FranchiseId,
+            request.MartStoreId,
+            requestedCartQuantity,
+            cancellationToken);
 
         var item = cart.AddItem(
             request.ProductId,

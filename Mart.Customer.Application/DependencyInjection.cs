@@ -1,5 +1,7 @@
 using FluentValidation;
 using Mart.Customer.Application.Common.Behaviors;
+using Mart.Customer.Application.Orders.Services;
+using Mart.Customer.Application.Wallets.Services;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,6 +20,9 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly);
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddScoped<IWalletRedemptionPreviewService, WalletRedemptionPreviewService>();
+        services.AddScoped<IOrderCheckoutCalculator, OrderCheckoutCalculator>();
+        services.AddScoped<IOrderCheckoutService, OrderCheckoutService>();
 
         return services;
     }

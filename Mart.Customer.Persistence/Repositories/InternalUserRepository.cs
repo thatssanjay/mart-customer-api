@@ -17,21 +17,73 @@ internal sealed class InternalUserRepository : IInternalUserRepository
     {
         var normalizedLoginId = loginId.Trim();
 
-        return await _dbContext.Users
+        var account = await _dbContext.Users
             .AsNoTracking()
             .Where(user => user.Username == normalizedLoginId && user.IsActive)
-            .Select(user => new InternalUserAccountDto(
-                user.UserId.ToString(),
+            .Select(user => new
+            {
+                user.UserId,
                 user.Username,
-                !string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName : user.Username,
-                user.UserRoles
+                user.DisplayName,
+                user.PasswordHash,
+                user.PasswordSalt,
+                Role = user.UserRoles
                     .Where(userRole => userRole.IsActive && userRole.Role.IsActive)
                     .OrderBy(userRole => userRole.Role.RoleCode == "SUPER_ADMIN" ? 0 : 1)
                     .ThenByDescending(userRole => userRole.AssignedOn)
                     .Select(userRole => userRole.Role.RoleCode)
                     .FirstOrDefault() ?? "User",
-                user.PasswordHash ?? string.Empty,
-                user.PasswordSalt ?? string.Empty))
+                Access = _dbContext.UserMartAccesses
+                    .Where(access =>
+                        access.UserId == user.UserId &&
+                        access.CanAccess &&
+                        access.FranchiseId.HasValue &&
+                        access.FranchiseId > 0 &&
+                        access.MartStoreId.HasValue &&
+                        access.MartStoreId > 0)
+                    .OrderBy(access => access.UserMartAccessId)
+                    .Select(access => new
+                    {
+                        FranchiseId = access.FranchiseId!.Value,
+                        StoreId = access.MartStoreId!.Value
+                    })
+                    .FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (account is null)
+        {
+            return null;
+        }
+
+        return new InternalUserAccountDto(
+            account.UserId.ToString(),
+            account.Username,
+            !string.IsNullOrWhiteSpace(account.DisplayName) ? account.DisplayName : account.Username,
+            account.Role,
+            account.PasswordHash ?? string.Empty,
+            account.PasswordSalt ?? string.Empty,
+            account.Access?.FranchiseId,
+            account.Access?.StoreId);
+    }
+
+    public Task<MartUserAccessScopeDto?> GetAccessScopeAsync(
+        long userId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.UserMartAccesses
+            .AsNoTracking()
+            .Where(access =>
+                access.UserId == userId &&
+                access.CanAccess &&
+                access.FranchiseId.HasValue &&
+                access.FranchiseId > 0 &&
+                access.MartStoreId.HasValue &&
+                access.MartStoreId > 0)
+            .OrderBy(access => access.UserMartAccessId)
+            .Select(access => new MartUserAccessScopeDto(
+                access.FranchiseId!.Value,
+                access.MartStoreId!.Value))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

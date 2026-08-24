@@ -26,7 +26,51 @@ internal sealed class CustomerCartRepository : ICustomerCartRepository
         return _dbContext.CustomerCarts.AddAsync(cart, cancellationToken).AsTask();
     }
 
+    public Task<CustomerCart?> GetByIdAsync(
+        long customerCartId,
+        long franchiseId,
+        long martStoreId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.CustomerCarts.SingleOrDefaultAsync(
+            cart => cart.CustomerCartId == customerCartId &&
+                    cart.FranchiseId == franchiseId &&
+                    cart.MartStoreId == martStoreId,
+            cancellationToken);
+    }
+
     public Task<CustomerCart?> GetByCartNumberAsync(
+        string cartNumber,
+        long franchiseId,
+        long martStoreId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.CustomerCarts
+            .Include(cart => cart.Items)
+            .SingleOrDefaultAsync(
+                cart => cart.CartNumber == cartNumber &&
+                        cart.FranchiseId == franchiseId &&
+                        cart.MartStoreId == martStoreId,
+                cancellationToken);
+    }
+
+    public Task<CustomerCart?> GetByCartNumberForCheckoutPreviewAsync(
+        string cartNumber,
+        long franchiseId,
+        long martStoreId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.CustomerCarts
+            .AsNoTracking()
+            .Include(cart => cart.Items)
+            .SingleOrDefaultAsync(
+                cart => cart.CartNumber == cartNumber &&
+                        cart.FranchiseId == franchiseId &&
+                        cart.MartStoreId == martStoreId,
+                cancellationToken);
+    }
+
+    public Task<CustomerCart?> GetByCartNumberForCheckoutAsync(
         string cartNumber,
         long franchiseId,
         long martStoreId,
@@ -49,12 +93,23 @@ internal sealed class CustomerCartRepository : ICustomerCartRepository
     public async Task<IReadOnlyList<CustomerCart>> GetByCustomerAndStatusAsync(
         long customerId,
         string cartStatus,
+        long? franchiseId,
+        long? martStoreId,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.CustomerCarts
+        var query = _dbContext.CustomerCarts
             .AsNoTracking()
             .Include(cart => cart.Items)
-            .Where(cart => cart.CustomerId == customerId && cart.CartStatus == cartStatus)
+            .Where(cart => cart.CustomerId == customerId && cart.CartStatus == cartStatus);
+
+        if (franchiseId.HasValue && martStoreId.HasValue)
+        {
+            query = query.Where(cart =>
+                cart.FranchiseId == franchiseId.Value &&
+                cart.MartStoreId == martStoreId.Value);
+        }
+
+        return await query
             .OrderByDescending(cart => cart.CreatedOn)
             .ToListAsync(cancellationToken);
     }

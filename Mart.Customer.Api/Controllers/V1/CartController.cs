@@ -1,22 +1,24 @@
 using Asp.Versioning;
 using Mart.Customer.Api.Auth;
 using Mart.Customer.Api.Contracts.Carts;
+using Mart.Customer.Application.Auth.Dtos;
+using Mart.Customer.Application.Auth.Queries.GetMartUserAccessScope;
 using Mart.Customer.Application.Carts.Commands.AddCartItem;
+using Mart.Customer.Application.Carts.Commands.CancelCart;
 using Mart.Customer.Application.Carts.Commands.ChangeCartStatus;
 using Mart.Customer.Application.Carts.Commands.CreateCart;
 using Mart.Customer.Application.Carts.Commands.DeleteCart;
 using Mart.Customer.Application.Carts.Commands.DeleteCartItemsByProduct;
 using Mart.Customer.Application.Carts.Commands.UpdateCartItem;
+using Mart.Customer.Application.Carts.Queries.GetCustomerCarts;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mart.Customer.Api.Controllers.V1;
 
 [ApiController]
-[Authorize]
 [ApiVersion(1.0)]
-[Route("api/v{version:apiVersion}/carts")]
+[Route("api/v{version:apiVersion}/inventory/carts")]
 public sealed class CartController : ControllerBase
 {
     private readonly ISender _sender;
@@ -33,15 +35,35 @@ public sealed class CartController : ControllerBase
         CreateCartRequest request,
         CancellationToken cancellationToken)
     {
+        var userId = _currentUser.UserId;
+        var access = await GetAccessScopeAsync(userId, cancellationToken);
         var cart = await _sender.Send(
             new CreateCartCommand(
                 request.CustomerId,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId,
-                _currentUser.UserId),
+                access.FranchiseId,
+                access.StoreId,
+                userId),
             cancellationToken);
 
         return Created(string.Empty, cart);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCarts(
+        [FromQuery] long customerId,
+        [FromQuery] string? cartStatus,
+        CancellationToken cancellationToken)
+    {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
+        var carts = await _sender.Send(
+            new GetCustomerCartsQuery(
+                customerId,
+                cartStatus,
+                access.FranchiseId,
+                access.StoreId),
+            cancellationToken);
+
+        return Ok(carts);
     }
 
     [HttpDelete("{cartNumber}")]
@@ -49,11 +71,12 @@ public sealed class CartController : ControllerBase
         string cartNumber,
         CancellationToken cancellationToken)
     {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
         var deleted = await _sender.Send(
             new DeleteCartCommand(
                 cartNumber,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId),
+                access.FranchiseId,
+                access.StoreId),
             cancellationToken);
 
         return deleted
@@ -67,12 +90,14 @@ public sealed class CartController : ControllerBase
         CreateCartItemRequest request,
         CancellationToken cancellationToken)
     {
+        var userId = _currentUser.UserId;
+        var access = await GetAccessScopeAsync(userId, cancellationToken);
         var item = await _sender.Send(
             new AddCartItemCommand(
                 cartNumber,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId,
-                _currentUser.UserId,
+                access.FranchiseId,
+                access.StoreId,
+                userId,
                 request.ProductId,
                 request.ProductNameSnapshot,
                 request.Quantity,
@@ -93,12 +118,33 @@ public sealed class CartController : ControllerBase
         ChangeCartStatusRequest request,
         CancellationToken cancellationToken)
     {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
         var cart = await _sender.Send(
             new ChangeCartStatusCommand(
                 cartNumber,
                 request.CartStatus,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId),
+                access.FranchiseId,
+                access.StoreId),
+            cancellationToken);
+
+        return cart is null
+            ? NotFound(new { message = "Cart not found." })
+            : Ok(cart);
+    }
+
+    [HttpPost("~/api/v{version:apiVersion}/carts/{cartId:long}/cancel")]
+    public async Task<IActionResult> CancelCart(
+        long cartId,
+        CancelCartRequest request,
+        CancellationToken cancellationToken)
+    {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
+        var cart = await _sender.Send(
+            new CancelCartCommand(
+                cartId,
+                request.Remarks,
+                access.FranchiseId,
+                access.StoreId),
             cancellationToken);
 
         return cart is null
@@ -113,12 +159,13 @@ public sealed class CartController : ControllerBase
         UpdateCartItemRequest request,
         CancellationToken cancellationToken)
     {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
         var item = await _sender.Send(
             new UpdateCartItemCommand(
                 cartNumber,
                 customerCartItemId,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId,
+                access.FranchiseId,
+                access.StoreId,
                 request.ProductNameSnapshot,
                 request.Quantity,
                 request.UnitPrice,
@@ -138,16 +185,24 @@ public sealed class CartController : ControllerBase
         long productId,
         CancellationToken cancellationToken)
     {
+        var access = await GetAccessScopeAsync(_currentUser.UserId, cancellationToken);
         var deleted = await _sender.Send(
             new DeleteCartItemsByProductCommand(
                 cartNumber,
                 productId,
-                _currentUser.FranchiseId,
-                _currentUser.StoreId),
+                access.FranchiseId,
+                access.StoreId),
             cancellationToken);
 
         return deleted
             ? NoContent()
             : NotFound(new { message = "Cart or product item not found." });
+    }
+
+    private Task<MartUserAccessScopeDto> GetAccessScopeAsync(
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        return _sender.Send(new GetMartUserAccessScopeQuery(userId), cancellationToken);
     }
 }

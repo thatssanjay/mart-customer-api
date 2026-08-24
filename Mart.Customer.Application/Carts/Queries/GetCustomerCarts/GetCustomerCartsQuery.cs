@@ -5,4 +5,6 @@ namespace Mart.Customer.Application.Carts.Queries.GetCustomerCarts;
 
 public sealed record GetCustomerCartsQuery(
     long CustomerId,
-    string? CartStatus) : IRequest<IReadOnlyList<CartDetailsDto>>;
+    string? CartStatus,
+    long? FranchiseId = null,
+    long? StoreId = null) : IRequest<IReadOnlyList<CartDetailsDto>>;

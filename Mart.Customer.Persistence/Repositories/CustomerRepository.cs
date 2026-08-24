@@ -14,6 +14,13 @@ internal sealed class CustomerRepository : ICustomerRepository
         _dbContext = dbContext;
     }
 
+    public Task<bool> ExistsByIdAsync(long customerId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Customers
+            .AsNoTracking()
+            .AnyAsync(customer => customer.CustomerId == customerId, cancellationToken);
+    }
+
     public Task<CustomerEntity?> GetByIdAsync(long customerId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Customers

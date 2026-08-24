@@ -1,5 +1,7 @@
 using Mart.Customer.Application.Abstractions.Auth;
 using Mart.Customer.Infrastructure.Auth;
+using Mart.Customer.Infrastructure.Invoices;
+using Mart.Customer.Application.Orders.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +15,9 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IOtpValidator, ConfiguredOtpValidator>();
         services.AddScoped<IPasswordVerifier, Pbkdf2PasswordVerifier>();
+        services.Configure<InvoiceArchiveOptions>(configuration.GetSection(InvoiceArchiveOptions.SectionName));
+        services.AddScoped<IInvoiceDocumentStorage, FileSystemInvoiceDocumentStorage>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
 
         return services;
     }

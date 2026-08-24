@@ -18,8 +18,20 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(product => product.ProductName)
             .HasMaxLength(250);
 
+        builder.Property(product => product.Barcode)
+            .HasMaxLength(100);
+
+        builder.Property(product => product.HSNCode)
+            .HasMaxLength(50);
+
+        builder.Property(product => product.ProductType)
+            .HasMaxLength(50);
+
+        builder.Property(product => product.Description)
+            .HasMaxLength(500);
+
         builder.Property(product => product.GSTPercent)
-            .HasPrecision(18, 2);
+            .HasPrecision(5, 2);
 
         builder.Property(product => product.MRP)
             .HasPrecision(18, 2);
@@ -29,5 +41,11 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.Property(product => product.DefaultPurchasePrice)
             .HasPrecision(18, 2);
+
+        builder.Property(product => product.MinimumQuantity)
+            .IsRequired();
+
+        builder.Property(product => product.MaximumQuantity)
+            .IsRequired();
     }
 }
