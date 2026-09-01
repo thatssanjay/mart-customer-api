@@ -10,6 +10,10 @@ public interface ICustomerCartRepository
         long franchiseId,
         long martStoreId,
         CancellationToken cancellationToken = default);
+    Task<CustomerCart?> GetByIdForWalletAsync(
+        long customerCartId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<CustomerCart?>(null);
     Task<CustomerCart?> GetByCartNumberAsync(
         string cartNumber,
         long franchiseId,

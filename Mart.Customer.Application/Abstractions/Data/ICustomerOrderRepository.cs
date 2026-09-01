@@ -15,6 +15,10 @@ public interface ICustomerOrderRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<OrderSearchItemDto> Orders, int TotalCount)> SearchPagedAsync(
+        OrderSearchCriteria criteria,
+        CancellationToken cancellationToken = default);
+
     Task<CustomerOrder?> GetByCartIdAsync(
         long customerCartId,
         bool tracking,
@@ -33,6 +37,11 @@ public interface ICustomerOrderRepository
 
     Task<OrderDetailResult> GetDetailByInvoiceNumberAsync(
         string invoiceNumber,
+        OrderDetailAccessScope accessScope,
+        CancellationToken cancellationToken = default);
+
+    Task<InvoiceDetailsResult> GetInvoiceDetailsAsync(
+        long customerOrderId,
         OrderDetailAccessScope accessScope,
         CancellationToken cancellationToken = default);
 

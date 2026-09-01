@@ -34,10 +34,11 @@ public sealed class ExceptionHandlingMiddleware
         {
             ValidationException validationException => CreateValidationProblem(context, validationException),
             DomainException domainException => CreateProblem(context, HttpStatusCode.BadRequest, "Domain rule violation", domainException.Message),
+            UnauthorizedAccessException unauthorizedException => CreateProblem(context, HttpStatusCode.Forbidden, "Forbidden", unauthorizedException.Message),
             _ => CreateProblem(context, HttpStatusCode.InternalServerError, "Server error", "An unexpected error occurred.")
         };
 
-        if (exception is not ValidationException and not DomainException)
+        if (exception is not ValidationException and not DomainException and not UnauthorizedAccessException)
         {
             _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}", context.Request.Method, context.Request.Path);
         }

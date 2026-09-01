@@ -9,6 +9,11 @@ public interface IInvoiceService
         OrderDetailAccessScope accessScope,
         CancellationToken cancellationToken = default);
 
+    Task<InvoiceDownloadResult> GetOriginalInvoiceAsync(
+        long customerOrderId,
+        OrderDetailAccessScope accessScope,
+        CancellationToken cancellationToken = default);
+
     Task<InvoiceArchiveResultDto> GenerateAndArchiveAsync(
         OrderInvoiceSnapshotDto invoice,
         CancellationToken cancellationToken = default);

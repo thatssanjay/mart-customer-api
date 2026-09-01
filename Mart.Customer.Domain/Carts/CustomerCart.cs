@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Mart.Customer.Domain.Carts;
 
 public sealed class CustomerCart
@@ -262,4 +264,70 @@ public sealed class CustomerCart
         PaidOn = paidOn;
         ModifiedOn = paidOn;
     }
+
+    public WalletPaymentAttempt BeginWalletPaymentAttempt(
+        string reference,
+        string tokenHash,
+        decimal amount,
+        DateTime expiresOn)
+    {
+        if (!string.Equals(CartStatus, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Common.DomainException("Wallet payment can only be raised for an active cart.");
+        }
+
+        var currentAttempt = GetWalletPaymentAttempt();
+        if (currentAttempt is not null &&
+            string.Equals(currentAttempt.Status, "PAID", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Common.DomainException("The current wallet payment is already paid and must be confirmed.");
+        }
+
+        var attempt = new WalletPaymentAttempt(
+            reference,
+            "PENDING",
+            tokenHash,
+            amount,
+            expiresOn);
+        Remarks = JsonSerializer.Serialize(attempt, WalletPaymentAttempt.JsonOptions);
+        ModifiedOn = DateTime.UtcNow;
+        return attempt;
+    }
+
+    public WalletPaymentAttempt? GetWalletPaymentAttempt()
+    {
+        if (string.IsNullOrWhiteSpace(Remarks) || !Remarks.TrimStart().StartsWith('{'))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<WalletPaymentAttempt>(
+                Remarks,
+                WalletPaymentAttempt.JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public WalletPaymentAttempt ExpireWalletPaymentAttempt(WalletPaymentAttempt attempt)
+    {
+        var expiredAttempt = attempt with { Status = "EXPIRED" };
+        Remarks = JsonSerializer.Serialize(expiredAttempt, WalletPaymentAttempt.JsonOptions);
+        ModifiedOn = DateTime.UtcNow;
+        return expiredAttempt;
+    }
+}
+
+public sealed record WalletPaymentAttempt(
+    string Reference,
+    string Status,
+    string TokenHash,
+    decimal Amount,
+    DateTime ExpiresOn)
+{
+    internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 }

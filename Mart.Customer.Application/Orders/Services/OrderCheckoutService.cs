@@ -3,6 +3,7 @@ using Mart.Customer.Application.Common.Utilities;
 using Mart.Customer.Application.Inventory.Services;
 using Mart.Customer.Application.Orders.Commands.CheckoutOrder;
 using Mart.Customer.Application.Orders.Dtos;
+using Mart.Customer.Application.Payments.Services;
 using Mart.Customer.Application.Wallets.Commands.CreditWallet;
 using Mart.Customer.Application.Wallets.Commands.RedeemWallet;
 using Mart.Customer.Domain.Common;
@@ -25,6 +26,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ISender _sender;
     private readonly IInvoiceService _invoiceService;
+    private readonly IWalletPaymentRequestService _walletPaymentRequestService;
     private readonly ILogger<OrderCheckoutService> _logger;
 
     public OrderCheckoutService(
@@ -38,6 +40,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
         IUnitOfWork unitOfWork,
         ISender sender,
         IInvoiceService invoiceService,
+        IWalletPaymentRequestService walletPaymentRequestService,
         ILogger<OrderCheckoutService> logger)
     {
         _cartRepository = cartRepository;
@@ -50,6 +53,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
         _unitOfWork = unitOfWork;
         _sender = sender;
         _invoiceService = invoiceService;
+        _walletPaymentRequestService = walletPaymentRequestService;
         _logger = logger;
     }
 
@@ -131,6 +135,28 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
             command.RedemptionAmount,
             cancellationToken);
         EnsurePaymentsMatch(preview.FinalPayableAmount, payments);
+
+        var walletPayment = payments.SingleOrDefault(payment =>
+            string.Equals(payment.PaymentMode, "Wallet", StringComparison.OrdinalIgnoreCase));
+        if (walletPayment is not null)
+        {
+            var paymentReference = await _walletPaymentRequestService.ValidateForCheckoutAsync(
+                cart,
+                command.WalletPaymentToken,
+                preview.FinalPayableAmount,
+                cancellationToken);
+            if (!string.Equals(
+                    walletPayment.TransactionReference,
+                    paymentReference,
+                    StringComparison.Ordinal))
+            {
+                throw new DomainException("The wallet payment reference does not match the paid request.");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(command.WalletPaymentToken))
+        {
+            throw new DomainException("A wallet payment token can only be used with a Wallet payment.");
+        }
 
         var orderDate = DateTime.UtcNow;
         var order = CustomerOrder.Create(
@@ -353,12 +379,12 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 throw new DomainException("Payment transaction reference cannot exceed 100 characters.");
             }
 
-            if (mode is not "CASH" and not "UPI" and not "CARD")
+            if (mode is not "CASH" and not "UPI" and not "CARD" and not "POS" and not "WALLET")
             {
-                throw new DomainException("Payment mode must be Cash, UPI, or Card.");
+                throw new DomainException("Payment mode must be Cash, UPI, Card, POS, or Wallet.");
             }
 
-            if (mode is "UPI" or "CARD" && reference is null)
+            if (mode is "UPI" or "CARD" or "POS" or "WALLET" && reference is null)
             {
                 throw new DomainException($"A transaction reference is required for {mode} payments.");
             }
@@ -373,6 +399,8 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 {
                     "CASH" => "Cash",
                     "CARD" => "Card",
+                    "POS" => "POS",
+                    "WALLET" => "Wallet",
                     _ => "UPI"
                 },
                 payment.Amount,
@@ -498,7 +526,17 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
             dto.FinalPayableAmount,
             order.InvoiceTemplateVersion,
             dto.Items,
-            dto.Payments);
+            dto.Payments,
+            order.RedeemPointsUsed,
+            order.RewardEarned,
+            order.CashbackEarned,
+            order.CGSTAmount,
+            order.SGSTAmount,
+            order.IGSTAmount,
+            order.RoundOffAmount,
+            order.StoreGSTINSnapshot,
+            order.StoreStateCodeSnapshot,
+            order.VerificationCode);
     }
 
     private static decimal RoundMoney(decimal amount) =>

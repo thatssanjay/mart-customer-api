@@ -152,6 +152,66 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
         return (orders, totalCount);
     }
 
+    public async Task<(IReadOnlyList<OrderSearchItemDto> Orders, int TotalCount)> SearchPagedAsync(
+        OrderSearchCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.CustomerOrders
+            .AsNoTracking()
+            .Where(order =>
+                order.FranchiseId == criteria.FranchiseId &&
+                order.MartStoreId == criteria.MartStoreId);
+
+        if (!string.IsNullOrWhiteSpace(criteria.CustomerName))
+        {
+            var customerName = criteria.CustomerName.Trim();
+            query = query.Where(order =>
+                order.CustomerNameSnapshot != null &&
+                EF.Functions.Like(order.CustomerNameSnapshot, $"%{customerName}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.MobileNumber))
+        {
+            var mobileNumber = criteria.MobileNumber.Trim();
+            query = query.Where(order => order.CustomerMobileSnapshot == mobileNumber);
+        }
+
+        if (!string.IsNullOrWhiteSpace(criteria.InvoiceNumber))
+        {
+            var invoiceNumber = criteria.InvoiceNumber.Trim();
+            query = query.Where(order =>
+                EF.Functions.Like(order.InvoiceNumber, $"%{invoiceNumber}%"));
+        }
+
+        if (criteria.FromDate.HasValue)
+        {
+            query = query.Where(order => order.OrderDate >= criteria.FromDate.Value);
+        }
+
+        if (criteria.ToDate.HasValue)
+        {
+            query = query.Where(order => order.OrderDate <= criteria.ToDate.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var orders = await query
+            .OrderByDescending(order => order.OrderDate)
+            .ThenByDescending(order => order.CustomerOrderId)
+            .Skip((criteria.PageNumber - 1) * criteria.PageSize)
+            .Take(criteria.PageSize)
+            .Select(order => new OrderSearchItemDto(
+                order.CustomerOrderId,
+                order.InvoiceNumber,
+                order.OrderDate,
+                order.CustomerNameSnapshot,
+                order.CustomerMobileSnapshot,
+                order.FinalPayableAmount,
+                order.OrderStatus))
+            .ToListAsync(cancellationToken);
+
+        return (orders, totalCount);
+    }
+
     public async Task<OrderDetailResult> GetDetailAsync(
         long customerOrderId,
         OrderDetailAccessScope accessScope,
@@ -176,6 +236,139 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
                 cancellationToken);
 
         return await GetDetailAsync(header, accessScope, cancellationToken);
+    }
+
+    public async Task<InvoiceDetailsResult> GetInvoiceDetailsAsync(
+        long customerOrderId,
+        OrderDetailAccessScope accessScope,
+        CancellationToken cancellationToken = default)
+    {
+        var header = await _dbContext.CustomerOrders
+            .AsNoTracking()
+            .Where(order => order.CustomerOrderId == customerOrderId)
+            .Select(order => new
+            {
+                order.CustomerOrderId,
+                order.InvoiceNumber,
+                order.OrderDate,
+                order.OrderStatus,
+                order.CustomerId,
+                order.CustomerCodeSnapshot,
+                order.CustomerNameSnapshot,
+                order.CustomerMobileSnapshot,
+                order.CustomerAddressSnapshot,
+                order.FranchiseId,
+                order.MartStoreId,
+                order.StoreNameSnapshot,
+                order.StoreAddressSnapshot,
+                order.StoreGSTINSnapshot,
+                order.StoreStateCodeSnapshot,
+                order.GrossAmount,
+                order.DiscountAmount,
+                order.TaxableAmount,
+                order.CGSTAmount,
+                order.SGSTAmount,
+                order.IGSTAmount,
+                order.GSTAmount,
+                order.RoundOffAmount,
+                order.RedemptionWalletTypeId,
+                order.RedeemPointsUsed,
+                order.RedemptionAmount,
+                order.FinalPayableAmount,
+                order.RewardEarned,
+                order.CashbackEarned
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (header is null)
+        {
+            return InvoiceDetailsResult.NotFound();
+        }
+
+        var canAccess = accessScope.CustomerId is > 0
+            ? header.CustomerId == accessScope.CustomerId.Value
+            : accessScope.FranchiseId is > 0 &&
+              accessScope.MartStoreId is > 0 &&
+              header.FranchiseId == accessScope.FranchiseId.Value &&
+              header.MartStoreId == accessScope.MartStoreId.Value;
+        if (!canAccess)
+        {
+            return InvoiceDetailsResult.Forbidden();
+        }
+
+        var items = await _dbContext.CustomerOrderItems
+            .AsNoTracking()
+            .Where(item => item.CustomerOrderId == customerOrderId)
+            .OrderBy(item => item.CustomerOrderItemId)
+            .Select(item => new InvoiceDetailsItemDto(
+                item.CustomerOrderItemId,
+                item.ProductId,
+                item.ProductCodeSnapshot,
+                item.HSNCodeSnapshot,
+                item.ProductNameSnapshot,
+                item.Quantity,
+                item.UnitPrice,
+                item.MRP,
+                item.Quantity * item.UnitPrice,
+                item.DiscountAmount,
+                item.TaxableAmount,
+                item.GSTPercent,
+                item.CGSTAmount,
+                item.SGSTAmount,
+                item.IGSTAmount,
+                item.GSTAmount,
+                item.LineTotal))
+            .ToListAsync(cancellationToken);
+
+        var payments = await _dbContext.CustomerOrderPayments
+            .AsNoTracking()
+            .Where(payment => payment.CustomerOrderId == customerOrderId)
+            .OrderBy(payment => payment.CustomerOrderPaymentId)
+            .Select(payment => new InvoiceDetailsPaymentDto(
+                payment.CustomerOrderPaymentId,
+                payment.PaymentMode,
+                payment.Amount,
+                payment.TransactionReference,
+                payment.PaidOn))
+            .ToListAsync(cancellationToken);
+
+        return InvoiceDetailsResult.Found(new InvoiceDetailsDto(
+            header.CustomerOrderId,
+            header.InvoiceNumber,
+            header.OrderDate,
+            header.OrderStatus,
+            new InvoiceCustomerSnapshotDto(
+                header.CustomerId,
+                header.CustomerCodeSnapshot,
+                header.CustomerNameSnapshot,
+                header.CustomerMobileSnapshot,
+                header.CustomerAddressSnapshot),
+            new InvoiceStoreSnapshotDto(
+                header.FranchiseId,
+                header.MartStoreId,
+                header.StoreNameSnapshot,
+                header.StoreAddressSnapshot,
+                header.StoreGSTINSnapshot,
+                header.StoreStateCodeSnapshot),
+            items,
+            payments,
+            new InvoiceTaxTotalsDto(
+                header.GrossAmount,
+                header.DiscountAmount,
+                header.TaxableAmount,
+                header.CGSTAmount,
+                header.SGSTAmount,
+                header.IGSTAmount,
+                header.GSTAmount,
+                header.RoundOffAmount,
+                header.TaxableAmount + header.GSTAmount + header.RoundOffAmount,
+                header.FinalPayableAmount),
+            new InvoiceRewardRedemptionDto(
+                header.RedemptionWalletTypeId,
+                header.RedeemPointsUsed,
+                header.RedemptionAmount,
+                header.RewardEarned,
+                header.CashbackEarned)));
     }
 
     public Task<OrderVerificationDto?> GetVerificationAsync(

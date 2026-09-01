@@ -98,7 +98,17 @@ internal sealed class CustomerOrderInvoiceRepository : ICustomerOrderInvoiceRepo
                 NetAmount = order.TaxableAmount + order.GSTAmount + order.RoundOffAmount,
                 order.RedemptionAmount,
                 order.FinalPayableAmount,
-                order.InvoiceTemplateVersion
+                order.InvoiceTemplateVersion,
+                order.RedeemPointsUsed,
+                order.RewardEarned,
+                order.CashbackEarned,
+                order.CGSTAmount,
+                order.SGSTAmount,
+                order.IGSTAmount,
+                order.RoundOffAmount,
+                order.StoreGSTINSnapshot,
+                order.StoreStateCodeSnapshot,
+                order.VerificationCode
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (header is null)
@@ -158,7 +168,17 @@ internal sealed class CustomerOrderInvoiceRepository : ICustomerOrderInvoiceRepo
             header.FinalPayableAmount,
             header.InvoiceTemplateVersion,
             items,
-            payments);
+            payments,
+            header.RedeemPointsUsed,
+            header.RewardEarned,
+            header.CashbackEarned,
+            header.CGSTAmount,
+            header.SGSTAmount,
+            header.IGSTAmount,
+            header.RoundOffAmount,
+            header.StoreGSTINSnapshot,
+            header.StoreStateCodeSnapshot,
+            header.VerificationCode);
     }
 
     public async Task<InvoiceDocumentInsertResult> TryAddDocumentAsync(

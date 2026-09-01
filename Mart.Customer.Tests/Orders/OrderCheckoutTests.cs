@@ -769,4 +769,10 @@ internal sealed class TestInvoiceService : IInvoiceService
         OrderDetailAccessScope accessScope,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    public Task<InvoiceDownloadResult> GetOriginalInvoiceAsync(
+        long customerOrderId,
+        OrderDetailAccessScope accessScope,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }

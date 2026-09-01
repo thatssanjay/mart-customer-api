@@ -13,6 +13,7 @@ public sealed class CheckoutOrderCommandValidator : AbstractValidator<CheckoutOr
         RuleFor(command => command.MartStoreId).GreaterThan(0);
         RuleFor(command => command.CashierId).GreaterThan(0);
         RuleFor(command => command.Payments).NotNull();
+        RuleFor(command => command.WalletPaymentToken).MaximumLength(200);
         RuleForEach(command => command.Payments).ChildRules(payment =>
         {
             payment.RuleFor(item => item.PaymentMode).NotEmpty().MaximumLength(30);

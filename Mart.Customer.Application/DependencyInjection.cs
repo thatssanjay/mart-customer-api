@@ -1,6 +1,7 @@
 using FluentValidation;
 using Mart.Customer.Application.Common.Behaviors;
 using Mart.Customer.Application.Orders.Services;
+using Mart.Customer.Application.Payments.Services;
 using Mart.Customer.Application.Wallets.Services;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IWalletRedemptionPreviewService, WalletRedemptionPreviewService>();
         services.AddScoped<IOrderCheckoutCalculator, OrderCheckoutCalculator>();
         services.AddScoped<IOrderCheckoutService, OrderCheckoutService>();
+        services.AddScoped<IWalletPaymentRequestService, WalletPaymentRequestService>();
 
         return services;
     }

@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Auth.Dtos;
 using Mart.Customer.Application.Orders.Dtos;
+using Mart.Customer.Application.Orders.Services;
 using Mart.Customer.Domain.Orders;
 using Mart.Customer.Persistence;
 using Mart.Customer.Shared.Auth;
@@ -61,6 +63,200 @@ public sealed class GetOrderDetailEndpointTests : IClassFixture<OrderDetailApiFa
         using var response = await client.GetAsync("/api/v1/orders/9223372036854775000");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoiceDetails_WhenOrderIsValid_ReturnsOnlyHistoricalSnapshots()
+    {
+        var order = await SeedInvoiceDetailsOrderAsync();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/orders/{order.CustomerOrderId}/invoice-details");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<InvoiceDetailsDto>();
+        Assert.NotNull(result);
+        Assert.Equal(order.CustomerOrderId, result.CustomerOrderId);
+        Assert.Equal("Snapshot customer", result.Customer.CustomerName);
+        Assert.Equal("Snapshot Store", result.Store.StoreName);
+        Assert.Null(result.Store.GSTIN);
+        Assert.Equal(110m, result.Totals.GrossAmount);
+        Assert.Equal(118m, result.Totals.FinalPayableAmount);
+        Assert.Equal(8m, result.Rewards.RedemptionAmount);
+        Assert.Equal(12m, result.Rewards.RewardEarned);
+        Assert.Equal(3m, result.Rewards.CashbackEarned);
+    }
+
+    [Fact]
+    public async Task GetInvoiceDetails_WhenOrderDoesNotExist_ReturnsNotFound()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/v1/orders/9223372036854775000/invoice-details");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoiceDetails_WhenCashierIsFromAnotherStore_ReturnsForbidden()
+    {
+        var order = CustomerOrder.Create(
+            Random.Shared.NextInt64(1_000_000, 9_000_000_000),
+            "INV-OTHER-STORE",
+            7007,
+            OrderDetailInternalUserRepository.FranchiseId,
+            OrderDetailInternalUserRepository.StoreId + 1,
+            DateTime.UtcNow,
+            0,
+            0m,
+            0m,
+            0m,
+            0m,
+            null,
+            0m,
+            0m,
+            41);
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            dbContext.CustomerOrders.Add(order);
+            await dbContext.SaveChangesAsync();
+        }
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/orders/{order.CustomerOrderId}/invoice-details");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_Inline_StreamsTheExistingPdfForBrowserDisplay()
+    {
+        var order = await SeedOrderAsync(customerId: 7201, invoiceArchived: true);
+        var storagePath = $"private/invoices/{order.CustomerOrderId}.pdf";
+        _factory.InvoiceStorage.Files[storagePath] = "%PDF-inline"u8.ToArray();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/orders/{order.CustomerOrderId}/invoice-pdf?disposition=inline");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.StartsWith("inline;", response.Content.Headers.ContentDisposition!.ToString());
+        Assert.Equal("%PDF-inline", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_Attachment_DownloadsTheSameExistingPdf()
+    {
+        var order = await SeedOrderAsync(customerId: 7202, invoiceArchived: true);
+        var storagePath = $"private/invoices/{order.CustomerOrderId}.pdf";
+        _factory.InvoiceStorage.Files[storagePath] = "%PDF-attachment"u8.ToArray();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/orders/{order.CustomerOrderId}/invoice-pdf?disposition=attachment");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal("%PDF-attachment", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_WhenDispositionIsInvalid_ReturnsValidationProblem()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/orders/1/invoice-pdf?disposition=download");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("disposition", problem.Errors.Keys, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_WhenOrderIsInAnotherStore_ReturnsForbidden()
+    {
+        var order = await SeedOrderAsync(
+            customerId: 7203,
+            invoiceArchived: true,
+            storeId: OrderDetailInternalUserRepository.StoreId + 1);
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync($"/api/v1/orders/{order.CustomerOrderId}/invoice-pdf");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_WhenOrderDoesNotExist_ReturnsNotFound()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/orders/9223372036854775000/invoice-pdf");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_WhenOriginalFileIsMissing_ReturnsNotFoundWithoutRegeneration()
+    {
+        var order = await SeedOrderAsync(customerId: 7204, invoiceArchived: true);
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync($"/api/v1/orders/{order.CustomerOrderId}/invoice-pdf");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoicePdf_WhenStorageFails_ReturnsServerError()
+    {
+        var order = await SeedOrderAsync(
+            customerId: 7205,
+            invoiceArchived: true,
+            storagePath: "private/storage-failure/invoice.pdf");
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync($"/api/v1/orders/{order.CustomerOrderId}/invoice-pdf");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetInvoiceDetails_WhenOrderHasMultipleItemsAndPaymentModes_ReturnsAllRows()
+    {
+        var order = await SeedInvoiceDetailsOrderAsync();
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/orders/{order.CustomerOrderId}/invoice-details");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<InvoiceDetailsDto>();
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Collection(
+            result.Items,
+            item =>
+            {
+                Assert.Equal("Product one snapshot", item.ProductName);
+                Assert.Equal(5m, item.CGSTAmount);
+                Assert.Equal(5m, item.SGSTAmount);
+            },
+            item => Assert.Equal("Product two snapshot", item.ProductName));
+        Assert.Collection(
+            result.Payments,
+            payment => Assert.Equal("Cash", payment.PaymentMode),
+            payment =>
+            {
+                Assert.Equal("UPI", payment.PaymentMode);
+                Assert.Equal("upi-reference", payment.TransactionReference);
+            });
     }
 
     [Fact]
@@ -213,7 +409,9 @@ public sealed class GetOrderDetailEndpointTests : IClassFixture<OrderDetailApiFa
     private async Task<CustomerOrder> SeedOrderAsync(
         long customerId,
         bool invoiceArchived,
-        string? invoiceNumber = null)
+        string? invoiceNumber = null,
+        long? storeId = null,
+        string? storagePath = null)
     {
         var uniqueId = Random.Shared.NextInt64(1_000_000, 9_000_000_000);
         var order = CustomerOrder.Create(
@@ -221,7 +419,7 @@ public sealed class GetOrderDetailEndpointTests : IClassFixture<OrderDetailApiFa
             invoiceNumber ?? $"INV-DETAIL-{uniqueId}",
             customerId,
             OrderDetailInternalUserRepository.FranchiseId,
-            OrderDetailInternalUserRepository.StoreId,
+            storeId ?? OrderDetailInternalUserRepository.StoreId,
             new DateTime(2026, 8, 23, 10, 30, 0, DateTimeKind.Utc),
             1,
             110m,
@@ -254,7 +452,7 @@ public sealed class GetOrderDetailEndpointTests : IClassFixture<OrderDetailApiFa
             dbContext.CustomerOrderInvoiceDocuments.Add(CustomerOrderInvoiceDocument.Create(
                 order.CustomerOrderId,
                 order.InvoiceTemplateVersion,
-                $"private/invoices/{uniqueId}.pdf",
+                storagePath ?? $"private/invoices/{uniqueId}.pdf",
                 new string('A', 64),
                 1,
                 DateTime.UtcNow));
@@ -262,11 +460,53 @@ public sealed class GetOrderDetailEndpointTests : IClassFixture<OrderDetailApiFa
         }
         return order;
     }
+
+    private async Task<CustomerOrder> SeedInvoiceDetailsOrderAsync()
+    {
+        var uniqueId = Random.Shared.NextInt64(1_000_000, 9_000_000_000);
+        var order = CustomerOrder.Create(
+            uniqueId,
+            $"INV-POPUP-{uniqueId}",
+            7010,
+            OrderDetailInternalUserRepository.FranchiseId,
+            OrderDetailInternalUserRepository.StoreId,
+            new DateTime(2026, 8, 24, 10, 30, 0, DateTimeKind.Utc),
+            2,
+            110m,
+            10m,
+            18m,
+            118m,
+            3,
+            8m,
+            118m,
+            41,
+            "Snapshot Store",
+            "Snapshot store address",
+            "C-7010",
+            "Snapshot customer",
+            "9000000000",
+            "Snapshot customer address");
+        order.AddItem(uniqueId, 501, "Product one snapshot", 1m, 50m, 55m, 50m, 0m, 20m, 10m, 60m);
+        order.AddItem(uniqueId + 1, 502, "Product two snapshot", 1m, 60m, 65m, 60m, 10m, 16m, 8m, 58m);
+        order.ApplyTaxSplit(isIntraState: true);
+        order.AddPayment("Cash", 40m, null);
+        order.AddPayment("UPI", 78m, "upi-reference");
+        order.SetRewardEarned(12m);
+        order.SetCashbackEarned(3m);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        dbContext.CustomerOrders.Add(order);
+        await dbContext.SaveChangesAsync();
+        return order;
+    }
 }
 
 public sealed class OrderDetailApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = $"order-detail-{Guid.NewGuid():N}";
+
+    public EndpointInvoiceStorage InvoiceStorage { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -288,6 +528,9 @@ public sealed class OrderDetailApiFactory : WebApplicationFactory<Program>
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseInMemoryDatabase(_databaseName));
 
+            services.RemoveAll<IInvoiceDocumentStorage>();
+            services.AddSingleton<IInvoiceDocumentStorage>(InvoiceStorage);
+
             services.RemoveAll<IInternalUserRepository>();
             services.AddScoped<IInternalUserRepository, OrderDetailInternalUserRepository>();
 
@@ -301,6 +544,38 @@ public sealed class OrderDetailApiFactory : WebApplicationFactory<Program>
                     OrderDetailAuthenticationHandler.AuthenticationScheme,
                     _ => { });
         });
+    }
+}
+
+public sealed class EndpointInvoiceStorage : IInvoiceDocumentStorage
+{
+    public ConcurrentDictionary<string, byte[]> Files { get; } = new(StringComparer.Ordinal);
+
+    public Task WriteAsync(
+        string storagePath,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken = default)
+    {
+        Files[storagePath] = content.ToArray();
+        return Task.CompletedTask;
+    }
+
+    public Task<Stream> OpenReadAsync(
+        string storagePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (storagePath.Contains("storage-failure", StringComparison.Ordinal))
+        {
+            throw new IOException("Simulated storage failure.");
+        }
+
+        if (!Files.TryGetValue(storagePath, out var content))
+        {
+            throw new FileNotFoundException("Invoice PDF was not found.", storagePath);
+        }
+
+        Stream stream = new MemoryStream(content, writable: false);
+        return Task.FromResult(stream);
     }
 }
 

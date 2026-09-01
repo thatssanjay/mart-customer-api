@@ -10,7 +10,29 @@ public sealed record CheckoutOrderCommand(
     long CashierId,
     int? WalletTypeId,
     decimal? RedemptionAmount,
-    IReadOnlyList<CheckoutPayment> Payments) : IRequest<OrderCheckoutDto?>;
+    string? WalletPaymentToken,
+    IReadOnlyList<CheckoutPayment> Payments) : IRequest<OrderCheckoutDto?>
+{
+    public CheckoutOrderCommand(
+        string? cartNumber,
+        long franchiseId,
+        long martStoreId,
+        long cashierId,
+        int? walletTypeId,
+        decimal? redemptionAmount,
+        IReadOnlyList<CheckoutPayment> payments)
+        : this(
+            cartNumber,
+            franchiseId,
+            martStoreId,
+            cashierId,
+            walletTypeId,
+            redemptionAmount,
+            null,
+            payments)
+    {
+    }
+}
 
 public sealed record CheckoutPayment(
     string? PaymentMode,

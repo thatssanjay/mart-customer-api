@@ -7,7 +7,9 @@ using Mart.Customer.Application.Orders.Commands.CheckoutOrder;
 using Mart.Customer.Application.Orders.Dtos;
 using Mart.Customer.Application.Orders.Queries.GetOrderDetailByInvoiceNumber;
 using Mart.Customer.Application.Orders.Queries.GetOrderDetail;
+using Mart.Customer.Application.Orders.Queries.GetInvoiceDetails;
 using Mart.Customer.Application.Orders.Queries.GetCustomerOrders;
+using Mart.Customer.Application.Orders.Queries.SearchOrders;
 using Mart.Customer.Application.Orders.Queries.VerifyOrder;
 using Mart.Customer.Application.Orders.Services;
 using MediatR;
@@ -72,6 +74,36 @@ public sealed class OrdersController : ControllerBase
         return ToOrderDetailActionResult(result);
     }
 
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        [FromQuery] string? customerName,
+        [FromQuery] string? mobileNumber,
+        [FromQuery] string? invoiceNumber,
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var access = await _sender.Send(
+            new GetMartUserAccessScopeQuery(_currentUser.UserId),
+            cancellationToken);
+        var orders = await _sender.Send(
+            new SearchOrdersQuery(
+                access.FranchiseId,
+                access.StoreId,
+                customerName,
+                mobileNumber,
+                invoiceNumber,
+                fromDate,
+                toDate,
+                pageNumber,
+                pageSize),
+            cancellationToken);
+
+        return Ok(orders);
+    }
+
     [HttpGet("by-invoice/{invoiceNumber}")]
     public async Task<IActionResult> GetByInvoiceNumber(
         string invoiceNumber,
@@ -122,6 +154,59 @@ public sealed class OrdersController : ControllerBase
         };
     }
 
+    [HttpGet("{orderId:long}/invoice-pdf")]
+    public async Task<IActionResult> GetOriginalInvoicePdf(
+        long orderId,
+        [FromQuery] string? disposition,
+        CancellationToken cancellationToken)
+    {
+        var isAttachment = string.Equals(disposition, "attachment", StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(disposition) &&
+            !isAttachment &&
+            !string.Equals(disposition, "inline", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["disposition"] = ["Disposition must be either 'inline' or 'attachment'."]
+            }));
+        }
+
+        var accessScope = await GetOrderDetailAccessScopeAsync(cancellationToken);
+        var result = await _invoiceService.GetOriginalInvoiceAsync(
+            orderId,
+            accessScope,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            InvoiceDownloadStatus.Found when isAttachment => File(
+                result.Content!,
+                "application/pdf",
+                result.FileName),
+            InvoiceDownloadStatus.Found => InlinePdf(result.Content!, result.FileName!),
+            InvoiceDownloadStatus.Forbidden => Forbid(),
+            _ => NotFound(new { message = "Invoice PDF not found." })
+        };
+    }
+
+    [HttpGet("{orderId:long}/invoice-details")]
+    public async Task<IActionResult> GetInvoiceDetails(
+        long orderId,
+        CancellationToken cancellationToken)
+    {
+        var accessScope = await GetOrderDetailAccessScopeAsync(cancellationToken);
+        var result = await _sender.Send(
+            new GetInvoiceDetailsQuery(orderId, accessScope),
+            cancellationToken);
+
+        return result.Status switch
+        {
+            InvoiceDetailsResultStatus.Found => Ok(result.Invoice),
+            InvoiceDetailsResultStatus.Forbidden => Forbid(),
+            _ => NotFound(new { message = "Order not found." })
+        };
+    }
+
     [HttpPost("checkout-preview")]
     public async Task<IActionResult> CheckoutPreview(
         CheckoutPreviewRequest request,
@@ -160,6 +245,7 @@ public sealed class OrdersController : ControllerBase
                 _currentUser.UserId,
                 request.WalletTypeId,
                 request.RedemptionAmount,
+                request.WalletPaymentToken,
                 request.Payments.Select(payment => new CheckoutPayment(
                     payment.PaymentMode,
                     payment.Amount,
@@ -195,4 +281,10 @@ public sealed class OrdersController : ControllerBase
             OrderDetailResultStatus.Forbidden => Forbid(),
             _ => NotFound(new { message = "Order not found." })
         };
+
+    private IActionResult InlinePdf(Stream content, string fileName)
+    {
+        Response.Headers.ContentDisposition = $"inline; filename=\"{fileName}\"";
+        return File(content, "application/pdf");
+    }
 }

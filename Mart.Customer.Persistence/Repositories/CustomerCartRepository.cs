@@ -39,6 +39,17 @@ internal sealed class CustomerCartRepository : ICustomerCartRepository
             cancellationToken);
     }
 
+    public Task<CustomerCart?> GetByIdForWalletAsync(
+        long customerCartId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.CustomerCarts
+            .Include(cart => cart.Items)
+            .SingleOrDefaultAsync(
+                cart => cart.CustomerCartId == customerCartId,
+                cancellationToken);
+    }
+
     public Task<CustomerCart?> GetByCartNumberAsync(
         string cartNumber,
         long franchiseId,

@@ -21,7 +21,17 @@ public sealed record OrderInvoiceSnapshotDto(
     decimal FinalPayableAmount,
     string InvoiceTemplateVersion,
     IReadOnlyList<OrderCheckoutItemDto> Items,
-    IReadOnlyList<OrderCheckoutPaymentDto> Payments);
+    IReadOnlyList<OrderCheckoutPaymentDto> Payments,
+    decimal RedeemPointsUsed = 0m,
+    decimal RewardEarned = 0m,
+    decimal CashbackEarned = 0m,
+    decimal CGSTAmount = 0m,
+    decimal SGSTAmount = 0m,
+    decimal IGSTAmount = 0m,
+    decimal RoundOffAmount = 0m,
+    string? StoreGSTINSnapshot = null,
+    string? StoreStateCodeSnapshot = null,
+    string? VerificationCode = null);
 
 public sealed record InvoiceArchiveResultDto(string ArchivePath);
 
