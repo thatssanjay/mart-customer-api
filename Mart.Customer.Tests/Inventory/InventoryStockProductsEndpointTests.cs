@@ -23,6 +23,22 @@ namespace Mart.Customer.Tests.Inventory;
 public sealed class InventoryStockProductsEndpointTests
 {
     [Fact]
+    public async Task BillingProductSearch_WhenBarcodeMatchesExactly_ReturnsOnlyBarcodeProduct()
+    {
+        await using var factory = new InventoryStockApiFactory();
+        await factory.SeedAsync(
+            CreateProduct(1, "CODE-1", "Exact barcode product", "890123", true, true),
+            CreateProduct(2, "890123-CODE", "Code fallback product", "OTHER", true, true));
+        using var client = factory.CreateClient();
+
+        var result = await client.GetFromJsonAsync<IReadOnlyList<ProductListItemDto>>(
+            "/api/v1/inventory/products?search=890123");
+
+        Assert.NotNull(result);
+        Assert.Equal(1, Assert.Single(result).ProductId);
+    }
+
+    [Fact]
     public async Task Search_WhenBarcodeMatchesExactly_ReturnsOnlyBarcodeProduct()
     {
         await using var factory = new InventoryStockApiFactory();

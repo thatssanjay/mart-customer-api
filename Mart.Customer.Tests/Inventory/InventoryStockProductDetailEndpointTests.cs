@@ -112,7 +112,63 @@ public sealed class InventoryStockProductDetailEndpointTests
         Assert.Equal("AUTHORIZED", Assert.Single(result.Batches).BatchNumber);
     }
 
-    private static Product CreateProduct(long id, bool isActive, bool isBatchApplicable)
+    [Fact]
+    public async Task Availability_NotStockManaged_ReturnsExistingStockMessage()
+    {
+        await using var factory = new InventoryStockApiFactory();
+        await factory.SeedAsync(
+            CreateProduct(
+                32003,
+                isActive: true,
+                isBatchApplicable: false,
+                isStockManaged: false));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/inventory/stock/products/32003/availability?requestedQuantity=1");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Product 32003 is not stock managed.", body);
+    }
+
+    [Fact]
+    public async Task Availability_InsufficientStock_ReturnsAvailableQuantity()
+    {
+        await using var factory = new InventoryStockApiFactory();
+        await factory.SeedAsync(
+            [CreateProduct(1, isActive: true, isBatchApplicable: false)],
+            [CreateStoreStock(1, 7, 11, 1, 2.5m)]);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/inventory/stock/products/1/availability?requestedQuantity=3");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Only 2.5 units are currently available in stock.", body);
+    }
+
+    [Fact]
+    public async Task Availability_SufficientStock_ReturnsNoContent()
+    {
+        await using var factory = new InventoryStockApiFactory();
+        await factory.SeedAsync(
+            [CreateProduct(1, isActive: true, isBatchApplicable: false)],
+            [CreateStoreStock(1, 7, 11, 1, 2.5m)]);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/inventory/stock/products/1/availability?requestedQuantity=2.5");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private static Product CreateProduct(
+        long id,
+        bool isActive,
+        bool isBatchApplicable,
+        bool isStockManaged = true)
     {
         var product = (Product)Activator.CreateInstance(typeof(Product), nonPublic: true)!;
         SetProperty(product, nameof(Product.ProductId), id);
@@ -134,7 +190,7 @@ public sealed class InventoryStockProductDetailEndpointTests
         SetProperty(product, nameof(Product.MinimumQuantity), 5L);
         SetProperty(product, nameof(Product.MaximumQuantity), 50L);
         SetProperty(product, nameof(Product.IsActive), isActive);
-        SetProperty(product, nameof(Product.IsStockManaged), true);
+        SetProperty(product, nameof(Product.IsStockManaged), isStockManaged);
         return product;
     }
 

@@ -82,6 +82,25 @@ public sealed class InventoryController : ControllerBase
             : Ok(product);
     }
 
+    [HttpGet("stock/products/{productId:long}/availability")]
+    public async Task<IActionResult> ValidateCartStock(
+        long productId,
+        [FromQuery] decimal requestedQuantity,
+        CancellationToken cancellationToken)
+    {
+        var access = await _sender.Send(
+            new GetMartUserAccessScopeQuery(_currentUser.UserId),
+            cancellationToken);
+        await _inventoryStockService.EnsureCartQuantityAvailableAsync(
+            productId,
+            access.FranchiseId,
+            access.StoreId,
+            requestedQuantity,
+            cancellationToken);
+
+        return NoContent();
+    }
+
     [HttpGet("stock/movements")]
     public async Task<IActionResult> GetStockMovements(
         [FromQuery] long? productId,

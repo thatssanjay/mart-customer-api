@@ -26,8 +26,6 @@ public sealed class SearchOrdersQueryHandler
                 request.CustomerName,
                 request.MobileNumber,
                 request.InvoiceNumber,
-                request.FromDate,
-                request.ToDate,
                 request.PageNumber,
                 request.PageSize),
             cancellationToken);

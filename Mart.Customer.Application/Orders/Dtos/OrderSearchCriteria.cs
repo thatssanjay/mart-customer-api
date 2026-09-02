@@ -6,7 +6,5 @@ public sealed record OrderSearchCriteria(
     string? CustomerName,
     string? MobileNumber,
     string? InvoiceNumber,
-    DateTime? FromDate,
-    DateTime? ToDate,
     int PageNumber,
     int PageSize);

@@ -10,7 +10,5 @@ public sealed record SearchOrdersQuery(
     string? CustomerName = null,
     string? MobileNumber = null,
     string? InvoiceNumber = null,
-    DateTime? FromDate = null,
-    DateTime? ToDate = null,
     int PageNumber = 1,
     int PageSize = 10) : IRequest<PagedResultDto<OrderSearchItemDto>>;

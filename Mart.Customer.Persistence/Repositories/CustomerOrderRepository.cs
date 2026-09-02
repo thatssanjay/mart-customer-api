@@ -183,16 +183,6 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
                 EF.Functions.Like(order.InvoiceNumber, $"%{invoiceNumber}%"));
         }
 
-        if (criteria.FromDate.HasValue)
-        {
-            query = query.Where(order => order.OrderDate >= criteria.FromDate.Value);
-        }
-
-        if (criteria.ToDate.HasValue)
-        {
-            query = query.Where(order => order.OrderDate <= criteria.ToDate.Value);
-        }
-
         var totalCount = await query.CountAsync(cancellationToken);
         var orders = await query
             .OrderByDescending(order => order.OrderDate)

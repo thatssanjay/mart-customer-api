@@ -79,8 +79,6 @@ public sealed class OrdersController : ControllerBase
         [FromQuery] string? customerName,
         [FromQuery] string? mobileNumber,
         [FromQuery] string? invoiceNumber,
-        [FromQuery] DateTime? fromDate,
-        [FromQuery] DateTime? toDate,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
@@ -95,8 +93,6 @@ public sealed class OrdersController : ControllerBase
                 customerName,
                 mobileNumber,
                 invoiceNumber,
-                fromDate,
-                toDate,
                 pageNumber,
                 pageSize),
             cancellationToken);

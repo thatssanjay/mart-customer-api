@@ -24,7 +24,25 @@ internal sealed class ProductRepository : IProductRepository
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchPattern = $"%{search.Trim()}%";
+            var normalizedSearch = search.Trim();
+            var barcodeProduct = await query
+                .Where(product => product.Barcode == normalizedSearch)
+                .Select(product => new ProductListItemDto(
+                    product.ProductId,
+                    product.ProductCode,
+                    product.ProductName,
+                    product.GSTPercent,
+                    product.MRP,
+                    product.DefaultSellingPrice,
+                    product.DefaultPurchasePrice))
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (barcodeProduct is not null)
+            {
+                return [barcodeProduct];
+            }
+
+            var searchPattern = $"%{normalizedSearch}%";
             query = query.Where(product =>
                 EF.Functions.Like(product.ProductCode, searchPattern) ||
                 EF.Functions.Like(product.ProductName, searchPattern));

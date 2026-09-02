@@ -58,33 +58,56 @@ public sealed class InventoryStockService : IInventoryStockService
         decimal requestedQuantity,
         CancellationToken cancellationToken = default)
     {
-        var isStockManaged = await _dbContext.Products
-            .AsNoTracking()
-            .Where(product => product.ProductId == productId && product.IsActive)
-            .Select(product => (bool?)product.IsStockManaged)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (isStockManaged is not true)
+        if (requestedQuantity <= 0)
         {
-            return;
+            throw new DomainException("Cart quantity must be greater than zero.");
         }
 
-        var availableQuantity = await _dbContext.StoreStocks
+        var product = await _dbContext.Products
+            .AsNoTracking()
+            .Where(product => product.ProductId == productId)
+            .Select(product => new
+            {
+                product.IsActive,
+                product.IsStockManaged
+            })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new DomainException($"Product {productId} was not found.");
+
+        if (!product.IsActive)
+        {
+            throw new DomainException($"Product {productId} is inactive and cannot be sold.");
+        }
+
+        if (!product.IsStockManaged)
+        {
+            throw new DomainException($"Product {productId} is not stock managed.");
+        }
+
+        var storeStock = await _dbContext.StoreStocks
             .AsNoTracking()
             .Where(stock =>
                 stock.ProductId == productId &&
                 stock.FranchiseId == franchiseId &&
                 stock.MartStoreId == martStoreId)
-            .Select(stock => (decimal?)stock.CurrentQuantity)
+            .Select(stock => new
+            {
+                stock.CurrentQuantity,
+                stock.IsActive
+            })
             .SingleOrDefaultAsync(cancellationToken);
 
-        // A valid product without a store-stock record is intentionally not stock managed.
-        if (!availableQuantity.HasValue || requestedQuantity <= availableQuantity.Value)
+        if (storeStock is null || !storeStock.IsActive)
+        {
+            throw new DomainException($"Active store stock was not found for product {productId}.");
+        }
+
+        if (requestedQuantity <= storeStock.CurrentQuantity)
         {
             return;
         }
 
-        var formattedQuantity = availableQuantity.Value.ToString(
+        var formattedQuantity = storeStock.CurrentQuantity.ToString(
             "0.###",
             CultureInfo.InvariantCulture);
         throw new DomainException(
