@@ -8,6 +8,9 @@ public sealed class GetCustomerCartsQueryValidator : AbstractValidator<GetCustom
     {
         RuleFor(query => query.CustomerId).GreaterThan(0);
         RuleFor(query => query.CartStatus).NotEmpty().MaximumLength(30);
+        RuleFor(query => query.CartNumber)
+            .NotEmpty().MaximumLength(50)
+            .When(query => query.CartNumber is not null);
         RuleFor(query => query.FranchiseId)
             .GreaterThan(0)
             .When(query => query.FranchiseId.HasValue || query.StoreId.HasValue);

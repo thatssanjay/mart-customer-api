@@ -14,6 +14,8 @@ public sealed class CustomerWallet
 
     public long CustomerId { get; private set; }
 
+    public long? StoreId { get; private set; }
+
     public int WalletTypeId { get; private set; }
 
     public decimal CurrentBalance { get; private set; }
@@ -30,7 +32,7 @@ public sealed class CustomerWallet
 
     public DateTime? ModifiedOn { get; private set; }
 
-    public static CustomerWallet Create(long customerId, int walletTypeId, DateTime createdOn)
+    public static CustomerWallet Create(long customerId, int walletTypeId, DateTime createdOn, long? storeId = null)
     {
         if (customerId <= 0)
         {
@@ -42,9 +44,15 @@ public sealed class CustomerWallet
             throw new DomainException("Wallet type ID must be greater than zero.");
         }
 
+        if (storeId <= 0)
+        {
+            throw new DomainException("Store ID must be greater than zero.");
+        }
+
         return new CustomerWallet
         {
             CustomerId = customerId,
+            StoreId = storeId,
             WalletTypeId = walletTypeId,
             CurrentBalance = 0,
             TotalCredit = 0,

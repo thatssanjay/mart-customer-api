@@ -106,12 +106,18 @@ internal sealed class CustomerCartRepository : ICustomerCartRepository
         string cartStatus,
         long? franchiseId,
         long? martStoreId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? cartNumber = null)
     {
         var query = _dbContext.CustomerCarts
             .AsNoTracking()
             .Include(cart => cart.Items)
             .Where(cart => cart.CustomerId == customerId && cart.CartStatus == cartStatus);
+
+        if (cartNumber is not null)
+        {
+            query = query.Where(cart => cart.CartNumber == cartNumber);
+        }
 
         if (franchiseId.HasValue && martStoreId.HasValue)
         {

@@ -9,4 +9,5 @@ public sealed record RefundWalletCommand(
     string OriginalTransactionNumber,
     decimal Amount,
     string? Remarks,
-    string CreatedBy) : IRequest<RefundWalletResultDto>;
+    string CreatedBy,
+    long? StoreId = null) : IRequest<RefundWalletResultDto>;

@@ -21,6 +21,7 @@ public sealed class GetCustomerWalletDetailQueryHandler
         return _customerWalletRepository.GetDetailAsync(
             request.CustomerId,
             request.WalletTypeId,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
     }
 }

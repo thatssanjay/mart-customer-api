@@ -46,7 +46,8 @@ public sealed class CreditWalletCommandHandler
         var wallet = await _customerWalletRepository.GetByCustomerAndTypeAsync(
             request.CustomerId,
             request.WalletTypeId,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
         if (wallet is null)
         {
             throw new DomainException("Customer wallet not found.");

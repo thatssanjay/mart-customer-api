@@ -26,7 +26,8 @@ public sealed class GetCustomerWalletTransactionsQueryHandler
         var customerWalletId = await _customerWalletRepository.GetActiveIdAsync(
             request.CustomerId,
             request.WalletTypeId,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
 
         if (!customerWalletId.HasValue)
         {

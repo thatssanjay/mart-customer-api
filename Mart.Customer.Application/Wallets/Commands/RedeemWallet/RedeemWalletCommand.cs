@@ -10,4 +10,5 @@ public sealed record RedeemWalletCommand(
     string? ReferenceType,
     long? ReferenceId,
     string? Remarks,
-    string CreatedBy) : IRequest<RedeemWalletResultDto>;
+    string CreatedBy,
+    long? StoreId = null) : IRequest<RedeemWalletResultDto>;

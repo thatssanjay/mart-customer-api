@@ -1,4 +1,9 @@
 using Asp.Versioning;
+using System.ComponentModel.DataAnnotations;
+using Mart.Customer.Api.Auth;
+using Mart.Customer.Application.Carts.Queries.GetCustomerCarts;
+using Mart.Customer.Application.Carts.Commands.UpdateCartPaymentStatus;
+using Mart.Customer.Api.Contracts.Carts;
 using Mart.Customer.Api.Contracts.Customers;
 using Mart.Customer.Api.Contracts.Wallets;
 using Mart.Customer.Application.Customers.Commands.CreateCustomer;
@@ -13,6 +18,7 @@ using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletExpirySummary;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletDetail;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletTransactions;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWallets;
+using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletBalances;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +36,35 @@ public sealed class CustomersController : ControllerBase
     public CustomersController(ISender sender)
     {
         _sender = sender;
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpGet("~/api/v{version:apiVersion}/customer/carts")]
+    public async Task<IActionResult> GetCarts(
+        [FromQuery, Required, MaxLength(50)] string cartNumber,
+        [FromQuery, Required, MaxLength(30)] string status,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var carts = await _sender.Send(
+            new GetCustomerCartsQuery(currentUser.UserId, status, CartNumber: cartNumber),
+            cancellationToken);
+
+        return Ok(carts);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpPatch("~/api/v{version:apiVersion}/customer/carts/payment-status")]
+    public async Task<IActionResult> UpdateCartPaymentStatus(
+        UpdateCartPaymentStatusRequest request,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new UpdateCartPaymentStatusCommand(request.CartId, request.Status, currentUser.UserId),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet]
@@ -133,6 +168,19 @@ public sealed class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{customerId:long}/wallet-balances")]
+    public async Task<IActionResult> GetWalletBalances(
+        long customerId,
+        CancellationToken cancellationToken)
+    {
+        var balances = await _sender.Send(
+            new GetCustomerWalletBalancesQuery(customerId), cancellationToken);
+
+        return balances is null
+            ? NotFound(new { message = "Customer not found." })
+            : Ok(balances);
+    }
+
     [HttpGet("~/api/customers/{customerId:long}/wallets")]
     public async Task<IActionResult> GetWallets(
         long customerId,
@@ -153,7 +201,7 @@ public sealed class CustomersController : ControllerBase
         CancellationToken cancellationToken)
     {
         var wallet = await _sender.Send(
-            new GetCustomerWalletDetailQuery(customerId, walletTypeId),
+            new GetCustomerWalletDetailQuery(customerId, walletTypeId) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return wallet is null
@@ -172,7 +220,7 @@ public sealed class CustomersController : ControllerBase
             new UpdateCustomerWalletStatusCommand(
                 customerId,
                 walletTypeId,
-                request.IsActive),
+                request.IsActive) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return wallet is null
@@ -197,7 +245,7 @@ public sealed class CustomersController : ControllerBase
                 request.FromDate,
                 request.ToDate,
                 request.ReferenceType,
-                request.ReferenceId),
+                request.ReferenceId) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return transactions is null
@@ -217,7 +265,7 @@ public sealed class CustomersController : ControllerBase
                 customerId,
                 walletTypeId,
                 request.AvailableOnly,
-                request.IncludeSourceTransaction),
+                request.IncludeSourceTransaction) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return buckets is null
@@ -233,7 +281,7 @@ public sealed class CustomersController : ControllerBase
         var summary = await _sender.Send(
             new GetCustomerWalletExpirySummaryQuery(
                 request.CustomerId,
-                request.WalletTypeId),
+                request.WalletTypeId) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return summary is null

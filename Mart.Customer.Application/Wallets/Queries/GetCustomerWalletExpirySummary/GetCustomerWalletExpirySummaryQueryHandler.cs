@@ -22,6 +22,7 @@ public sealed class GetCustomerWalletExpirySummaryQueryHandler
         return _walletBalanceBucketRepository.GetExpirySummaryAsync(
             request.CustomerId,
             request.WalletTypeId,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
     }
 }

@@ -22,6 +22,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<CashbackConfiguration> CashbackConfigurations => Set<CashbackConfiguration>();
 
+    public DbSet<CashbackSettingWallet> CashbackSettingWallets => Set<CashbackSettingWallet>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<StoreStock> StoreStocks => Set<StoreStock>();
@@ -65,6 +67,36 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
 
     public DbSet<WalletBalanceBucket> WalletBalanceBuckets => Set<WalletBalanceBucket>();
+
+    public DbSet<WalletOperation> WalletOperations => Set<WalletOperation>();
+
+    public DbSet<WalletOperationComponent> WalletOperationComponents => Set<WalletOperationComponent>();
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ValidateWalletAuditChanges();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        ValidateWalletAuditChanges();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void ValidateWalletAuditChanges()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if ((entry.Entity is WalletTransaction or WalletOperationComponent) &&
+                entry.State is EntityState.Modified or EntityState.Deleted)
+                throw new InvalidOperationException("Wallet ledger and component history is immutable.");
+            if (entry.Entity is WalletOperation &&
+                (entry.State == EntityState.Deleted || (entry.State == EntityState.Modified &&
+                entry.OriginalValues.GetValue<string>(nameof(WalletOperation.Status)) == WalletOperationStatuses.Completed)))
+                throw new InvalidOperationException("Completed wallet operations are immutable.");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

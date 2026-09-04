@@ -34,7 +34,8 @@ public interface ICustomerCartRepository
         string cartStatus,
         long? franchiseId,
         long? martStoreId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? cartNumber = null);
     Task AddAsync(CustomerCart cart, CancellationToken cancellationToken = default);
     void Remove(CustomerCart cart);
 }

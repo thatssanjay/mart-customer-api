@@ -5,20 +5,27 @@ namespace Mart.Customer.Application.Abstractions.Data;
 
 public interface ICustomerWalletRepository
 {
+    Task<IReadOnlyList<CustomerWalletBalanceDto>> GetBalancesByCustomerIdAsync(
+        long customerId,
+        CancellationToken cancellationToken = default);
+
     Task<long?> GetActiveIdAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 
     Task<CustomerWalletDto?> GetDetailAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 
     Task<CustomerWalletDto?> GetDetailIncludingInactiveAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 
     Task<IReadOnlyList<CustomerWalletDto>> GetDetailsByCustomerIdAsync(
         long customerId,
@@ -32,7 +39,8 @@ public interface ICustomerWalletRepository
     Task<CustomerWallet?> GetByCustomerAndTypeAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 
     Task AddRangeAsync(
         IEnumerable<CustomerWallet> wallets,

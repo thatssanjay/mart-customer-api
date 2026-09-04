@@ -6,4 +6,7 @@ namespace Mart.Customer.Application.Wallets.Queries.PreviewWalletRedemption;
 public sealed record PreviewWalletRedemptionQuery(
     long CustomerId,
     int WalletTypeId,
-    decimal Amount) : IRequest<RedeemPreviewResultDto>;
+    decimal Amount) : IRequest<RedeemPreviewResultDto>
+{
+    public long? StoreId { get; init; }
+}

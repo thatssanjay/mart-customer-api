@@ -26,7 +26,12 @@ public sealed class ProvisionCustomerWalletsCommandHandler
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<ProvisionCustomerWalletsResultDto> Handle(
+    public Task<ProvisionCustomerWalletsResultDto> Handle(
+        ProvisionCustomerWalletsCommand request,
+        CancellationToken cancellationToken) =>
+        _unitOfWork.ExecuteInTransactionAsync(token => ProvisionAsync(request, token), cancellationToken);
+
+    private async Task<ProvisionCustomerWalletsResultDto> ProvisionAsync(
         ProvisionCustomerWalletsCommand request,
         CancellationToken cancellationToken)
     {
@@ -38,10 +43,13 @@ public sealed class ProvisionCustomerWalletsCommandHandler
         var activeWalletTypes = await _walletTypeRepository.GetAsync(
             activeOnly: true,
             cancellationToken);
+        activeWalletTypes = activeWalletTypes
+            .Where(type => !string.Equals(type.Code, WalletTypeCodes.MartWallet, StringComparison.OrdinalIgnoreCase))
+            .ToList();
         var existingWallets = await _customerWalletRepository.GetByCustomerIdAsync(
             request.CustomerId,
             cancellationToken);
-        var existingWalletsByTypeId = existingWallets.ToDictionary(wallet => wallet.WalletTypeId);
+        var existingWalletsByTypeId = existingWallets.Where(wallet => wallet.StoreId == null).ToDictionary(wallet => wallet.WalletTypeId);
         var createdOn = DateTime.UtcNow;
         var createdWallets = activeWalletTypes
             .Where(walletType => !existingWalletsByTypeId.ContainsKey(walletType.Id))

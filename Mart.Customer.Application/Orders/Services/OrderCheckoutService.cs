@@ -9,6 +9,7 @@ using Mart.Customer.Application.Wallets.Commands.RedeemWallet;
 using Mart.Customer.Domain.Common;
 using Mart.Customer.Domain.Orders;
 using MediatR;
+using Mart.Customer.Application.Wallets.Commands.EnsureStoreWallet;
 using Microsoft.Extensions.Logging;
 
 namespace Mart.Customer.Application.Orders.Services;
@@ -158,6 +159,9 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
             throw new DomainException("A wallet payment token can only be used with a Wallet payment.");
         }
 
+        await _sender.Send(
+            new EnsureStoreWalletCommand(cart.CustomerId, cart.MartStoreId), cancellationToken);
+
         var orderDate = DateTime.UtcNow;
         var order = CustomerOrder.Create(
             cart.CustomerCartId,
@@ -214,7 +218,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                     OrderReferenceType,
                     order.CustomerOrderId,
                     "Order redemption",
-                    command.CashierId.ToString()),
+                    command.CashierId.ToString(), cart.MartStoreId),
                 cancellationToken);
         }
 
@@ -269,7 +273,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 setting.CashbackValidityDays > 0
                     ? order.OrderDate.AddDays(setting.CashbackValidityDays)
                     : null,
-                cashierId.ToString()),
+                cashierId.ToString(), order.MartStoreId),
             cancellationToken);
         order.SetCashbackEarned(cashback);
     }
@@ -304,7 +308,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 order.CustomerOrderId,
                 "Order reward",
                 configuration.ExpiryDate,
-                cashierId.ToString()),
+                cashierId.ToString(), order.MartStoreId),
             cancellationToken);
         order.SetRewardEarned(reward);
     }

@@ -1,5 +1,6 @@
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Carts.Dtos;
+using Mart.Customer.Domain.Common;
 using MediatR;
 
 namespace Mart.Customer.Application.Carts.Queries.GetCustomerCarts;
@@ -18,12 +19,33 @@ public sealed class GetCustomerCartsQueryHandler
         GetCustomerCartsQuery request,
         CancellationToken cancellationToken)
     {
+        var status = request.CartStatus!.Trim();
+        if (request.CartNumber is not null)
+        {
+            status = status.ToUpperInvariant() switch
+            {
+                "ACTIVE" => "Active",
+                "PAYMENTPENDING" => "PaymentPending",
+                "CUSTOMERAPPROVED" => "CustomerApproved",
+                "PAID" => "Paid",
+                "CANCELLED" => "Cancelled",
+                _ => status
+            };
+        }
+
         var carts = await _cartRepository.GetByCustomerAndStatusAsync(
             request.CustomerId,
-            request.CartStatus!.Trim(),
+            status,
             request.FranchiseId,
             request.StoreId,
-            cancellationToken);
+            cancellationToken,
+            request.CartNumber?.Trim());
+
+        if (request.CartNumber is not null && carts.Count == 0)
+        {
+            // Use the same response for absent carts, other owners, and status mismatches.
+            throw new DomainException("Invalid cart number.");
+        }
 
         return carts.Select(cart => new CartDetailsDto(
             cart.CustomerCartId,

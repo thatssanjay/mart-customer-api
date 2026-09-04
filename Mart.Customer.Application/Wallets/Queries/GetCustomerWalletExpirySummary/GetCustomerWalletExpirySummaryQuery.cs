@@ -6,4 +6,7 @@ namespace Mart.Customer.Application.Wallets.Queries.GetCustomerWalletExpirySumma
 public sealed record GetCustomerWalletExpirySummaryQuery(
     long CustomerId,
     int WalletTypeId)
-    : IRequest<WalletExpirySummaryDto?>;
+    : IRequest<WalletExpirySummaryDto?>
+{
+    public long? StoreId { get; init; }
+}

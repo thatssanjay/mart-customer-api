@@ -11,4 +11,5 @@ public sealed record CreditWalletCommand(
     long? ReferenceId,
     string? Remarks,
     DateTime? ExpiryDate,
-    string CreatedBy) : IRequest<CreditWalletResultDto>;
+    string CreatedBy,
+    long? StoreId = null) : IRequest<CreditWalletResultDto>;

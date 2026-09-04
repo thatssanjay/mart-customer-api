@@ -21,12 +21,14 @@ public sealed class WalletRedemptionPreviewService : IWalletRedemptionPreviewSer
         long customerId,
         int walletTypeId,
         decimal amount,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? storeId = null)
     {
         var wallet = await _customerWalletRepository.GetDetailIncludingInactiveAsync(
             customerId,
             walletTypeId,
-            cancellationToken);
+            cancellationToken,
+            storeId);
         if (wallet is null)
         {
             throw new DomainException("Customer wallet not found.");

@@ -29,7 +29,8 @@ public sealed class UpdateCustomerWalletStatusCommandHandler
         var wallet = await _customerWalletRepository.GetByCustomerAndTypeAsync(
             request.CustomerId,
             request.WalletTypeId,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
         if (wallet is null)
         {
             return null;

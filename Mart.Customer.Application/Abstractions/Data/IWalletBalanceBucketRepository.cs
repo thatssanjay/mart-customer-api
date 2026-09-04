@@ -12,7 +12,8 @@ public interface IWalletBalanceBucketRepository
     Task<WalletExpirySummaryDto?> GetExpirySummaryAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 
     Task<IReadOnlyList<WalletBalanceBucketDto>> GetByCustomerWalletIdAsync(
         long customerWalletId,

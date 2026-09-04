@@ -96,7 +96,8 @@ public sealed class OrderCheckoutCalculator : IOrderCheckoutCalculator
                 cart.CustomerId,
                 walletTypeId!.Value,
                 requestedRedemption,
-                cancellationToken);
+                cancellationToken,
+                cart.MartStoreId);
         }
 
         return new OrderCheckoutPreviewDto(

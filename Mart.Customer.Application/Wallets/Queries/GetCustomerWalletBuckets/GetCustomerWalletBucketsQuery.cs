@@ -8,4 +8,7 @@ public sealed record GetCustomerWalletBucketsQuery(
     int WalletTypeId,
     bool AvailableOnly = false,
     bool IncludeSourceTransaction = false)
-    : IRequest<IReadOnlyList<WalletBalanceBucketDto>?>;
+    : IRequest<IReadOnlyList<WalletBalanceBucketDto>?>
+{
+    public long? StoreId { get; init; }
+}

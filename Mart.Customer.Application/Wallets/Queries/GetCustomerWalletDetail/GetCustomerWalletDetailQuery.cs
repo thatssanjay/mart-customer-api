@@ -4,4 +4,7 @@ using MediatR;
 namespace Mart.Customer.Application.Wallets.Queries.GetCustomerWalletDetail;
 
 public sealed record GetCustomerWalletDetailQuery(long CustomerId, int WalletTypeId)
-    : IRequest<CustomerWalletDto?>;
+    : IRequest<CustomerWalletDto?>
+{
+    public long? StoreId { get; init; }
+}

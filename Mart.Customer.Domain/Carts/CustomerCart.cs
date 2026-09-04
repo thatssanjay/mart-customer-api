@@ -294,6 +294,58 @@ public sealed class CustomerCart
         return attempt;
     }
 
+    public string UpdatePaymentStatus(string status)
+    {
+        var normalizedStatus = status.Trim().ToUpperInvariant();
+        if (normalizedStatus is not ("PENDING" or "PAID" or "EXPIRED"))
+        {
+            throw new Common.DomainException("Invalid payment status. Allowed values are PENDING, PAID, and EXPIRED.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Remarks))
+        {
+            throw new Common.DomainException("The cart payment information is invalid.");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(Remarks);
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                document.RootElement.EnumerateObject().Count(property => property.NameEquals("status")) != 1 ||
+                document.RootElement.GetProperty("status").ValueKind != JsonValueKind.String)
+            {
+                throw new Common.DomainException("The cart payment information is invalid.");
+            }
+
+            using var stream = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                foreach (var property in document.RootElement.EnumerateObject())
+                {
+                    if (property.NameEquals("status"))
+                        writer.WriteString("status", normalizedStatus);
+                    else
+                        property.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+            }
+
+            var updatedRemarks = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+            if (updatedRemarks.Length > 500)
+            {
+                throw new Common.DomainException("The cart payment information exceeds the maximum length of 500 characters.");
+            }
+
+            Remarks = updatedRemarks;
+            return normalizedStatus;
+        }
+        catch (JsonException)
+        {
+            throw new Common.DomainException("The cart payment information is invalid.");
+        }
+    }
+
     public WalletPaymentAttempt? GetWalletPaymentAttempt()
     {
         if (string.IsNullOrWhiteSpace(Remarks) || !Remarks.TrimStart().StartsWith('{'))

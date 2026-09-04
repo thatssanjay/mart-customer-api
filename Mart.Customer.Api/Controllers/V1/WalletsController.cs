@@ -1,3 +1,4 @@
+using Mart.Customer.Api.Auth;
 using System.Security.Claims;
 using Asp.Versioning;
 using Mart.Customer.Api.Contracts.Wallets;
@@ -41,7 +42,7 @@ public sealed class WalletsController : ControllerBase
                 request.ReferenceId,
                 request.Remarks,
                 request.ExpiryDate,
-                createdBy),
+                createdBy) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return Ok(result);
@@ -56,7 +57,7 @@ public sealed class WalletsController : ControllerBase
             new PreviewWalletRedemptionQuery(
                 request.CustomerId,
                 request.WalletTypeId,
-                request.Amount),
+                request.Amount) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return Ok(result);
@@ -78,7 +79,7 @@ public sealed class WalletsController : ControllerBase
                 request.ReferenceType,
                 request.ReferenceId,
                 request.Remarks,
-                createdBy),
+                createdBy) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return Ok(result);
@@ -99,7 +100,7 @@ public sealed class WalletsController : ControllerBase
                 request.OriginalTransactionNumber,
                 request.Amount,
                 request.Remarks,
-                createdBy),
+                createdBy) { StoreId = WalletStoreContext.GetStoreId(HttpContext) },
             cancellationToken);
 
         return Ok(result);

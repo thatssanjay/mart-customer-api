@@ -24,7 +24,8 @@ internal sealed class WalletBalanceBucketRepository : IWalletBalanceBucketReposi
     public Task<WalletExpirySummaryDto?> GetExpirySummaryAsync(
         long customerId,
         int walletTypeId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? storeId = null)
     {
         return (
             from wallet in _dbContext.CustomerWallets.AsNoTracking()
@@ -35,6 +36,7 @@ internal sealed class WalletBalanceBucketRepository : IWalletBalanceBucketReposi
                 on wallet.CustomerWalletId equals bucket.CustomerWalletId into expiringBuckets
             where wallet.CustomerId == customerId &&
                   wallet.WalletTypeId == walletTypeId &&
+                  (walletType.Code.ToUpper() == WalletTypeCodes.MartWallet ? storeId != null && wallet.StoreId == storeId : wallet.StoreId == null) &&
                   wallet.IsActive &&
                   walletType.IsActive
             select new WalletExpirySummaryDto(

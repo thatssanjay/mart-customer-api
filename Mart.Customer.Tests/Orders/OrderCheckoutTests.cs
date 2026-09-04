@@ -646,15 +646,18 @@ internal sealed class CheckoutFixture : IAsyncDisposable
     {
         var wallet = await RedeemPreviewServiceTests.SeedWalletAsync(
             Db, customerId, walletTypeId, true, true, balance);
-        RedeemPreviewServiceTests.SeedBuckets(
-            Db,
-            wallet.CustomerWalletId,
-            RedeemPreviewServiceTests.CreateBucket(
-                walletTypeId * 100L,
+        if (balance > 0)
+        {
+            RedeemPreviewServiceTests.SeedBuckets(
+                Db,
                 wallet.CustomerWalletId,
-                balance,
-                null,
-                DateTime.UtcNow));
+                RedeemPreviewServiceTests.CreateBucket(
+                    walletTypeId * 100L,
+                    wallet.CustomerWalletId,
+                    balance,
+                    null,
+                    DateTime.UtcNow));
+        }
         await Db.SaveChangesAsync();
         if (!string.IsNullOrWhiteSpace(walletTypeCode))
         {
@@ -694,7 +697,7 @@ internal sealed class CheckoutFixture : IAsyncDisposable
         var setting = (CashbackConfiguration)Activator.CreateInstance(
             typeof(CashbackConfiguration),
             nonPublic: true)!;
-        SetProperty(setting, nameof(CashbackConfiguration.StoreId), (int?)11);
+        SetProperty(setting, nameof(CashbackConfiguration.StoreId), (long?)11);
         SetProperty(setting, nameof(CashbackConfiguration.CashbackPercentage), (decimal?)percentage);
         SetProperty(setting, nameof(CashbackConfiguration.CashbackValidityDays), (int?)30);
         SetProperty(setting, nameof(CashbackConfiguration.MinimumPurchaseAmount), (decimal?)0m);

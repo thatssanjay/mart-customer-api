@@ -6,9 +6,9 @@ public sealed class CashbackConfiguration
     {
     }
 
-    public int CashbackSettingId { get; private set; }
+    public long CashbackSettingId { get; private set; }
 
-    public int? StoreId { get; private set; }
+    public long? StoreId { get; private set; }
 
     public decimal? CashbackPercentage { get; private set; }
 

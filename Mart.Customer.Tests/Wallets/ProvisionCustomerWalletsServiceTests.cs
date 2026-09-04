@@ -40,7 +40,7 @@ public sealed class ProvisionCustomerWalletsServiceTests
             CancellationToken.None);
 
         Assert.Equal(20011, firstResult.CustomerId);
-        Assert.Equal([3, 2], firstResult.Created.Select(wallet => wallet.WalletTypeId));
+        Assert.Equal([2], firstResult.Created.Select(wallet => wallet.WalletTypeId));
         Assert.All(firstResult.Created, wallet => Assert.True(wallet.CustomerWalletId > 0));
         Assert.Collection(
             firstResult.Skipped,
@@ -50,10 +50,10 @@ public sealed class ProvisionCustomerWalletsServiceTests
                 Assert.Equal("REWARD", wallet.WalletTypeCode);
             });
         Assert.Empty(secondResult.Created);
-        Assert.Equal([3, 1, 2], secondResult.Skipped.Select(wallet => wallet.WalletTypeId));
+        Assert.Equal([1, 2], secondResult.Skipped.Select(wallet => wallet.WalletTypeId));
         Assert.Equal(2, unitOfWork.SaveChangesCallCount);
         Assert.Equal(
-            4,
+            3,
             await dbContext.CustomerWallets.CountAsync(wallet => wallet.CustomerId == 20011));
     }
 

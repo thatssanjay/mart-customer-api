@@ -13,4 +13,7 @@ public sealed record GetCustomerWalletTransactionsQuery(
     DateTime? FromDate = null,
     DateTime? ToDate = null,
     string? ReferenceType = null,
-    long? ReferenceId = null) : IRequest<PagedResultDto<WalletTransactionDto>?>;
+    long? ReferenceId = null) : IRequest<PagedResultDto<WalletTransactionDto>?>
+{
+    public long? StoreId { get; init; }
+}

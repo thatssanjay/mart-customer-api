@@ -27,6 +27,7 @@ public sealed class PreviewWalletRedemptionQueryHandler
             request.CustomerId,
             request.WalletTypeId,
             request.Amount,
-            cancellationToken);
+            cancellationToken,
+            request.StoreId);
     }
 }

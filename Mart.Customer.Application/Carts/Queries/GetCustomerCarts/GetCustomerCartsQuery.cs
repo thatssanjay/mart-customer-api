@@ -7,4 +7,5 @@ public sealed record GetCustomerCartsQuery(
     long CustomerId,
     string? CartStatus,
     long? FranchiseId = null,
-    long? StoreId = null) : IRequest<IReadOnlyList<CartDetailsDto>>;
+    long? StoreId = null,
+    string? CartNumber = null) : IRequest<IReadOnlyList<CartDetailsDto>>;

@@ -14,4 +14,5 @@ public sealed record CustomerWalletDto(
     bool IsActive,
     bool IsWalletTypeActive,
     DateTime CreatedOn,
-    DateTime? ModifiedOn);
+    DateTime? ModifiedOn,
+    long? StoreId = null);

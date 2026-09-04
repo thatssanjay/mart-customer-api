@@ -12,6 +12,8 @@ public sealed class WalletType
 
     public string Code { get; private set; } = string.Empty;
 
+    public int DisplayOrder { get; private set; }
+
     public string? Description { get; private set; }
 
     public bool IsActive { get; private set; }

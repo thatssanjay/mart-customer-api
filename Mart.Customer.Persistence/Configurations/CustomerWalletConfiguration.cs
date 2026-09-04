@@ -37,8 +37,9 @@ public sealed class CustomerWalletConfiguration : IEntityTypeConfiguration<Custo
         builder.Property(wallet => wallet.CreatedOn)
             .HasDefaultValueSql("sysutcdatetime()");
 
-        builder.HasIndex(wallet => new { wallet.CustomerId, wallet.WalletTypeId })
+        builder.HasIndex(wallet => new { wallet.CustomerId, wallet.WalletTypeId, wallet.StoreId })
             .IsUnique()
+            .HasFilter(null)
             .HasDatabaseName("UQ_CustomerWallet");
     }
 }

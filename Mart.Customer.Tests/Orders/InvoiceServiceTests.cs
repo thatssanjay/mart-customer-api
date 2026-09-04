@@ -65,7 +65,7 @@ public sealed class InvoiceServiceTests
     {
         var repository = MissingRepository(Snapshot(
             templateVersion: "historical-v7",
-            productName: "Discontinued snapshot product"));
+            productName: "Archived product"));
         var storage = new TestInvoiceStorage();
         await using var provider = CreateProvider(repository, storage);
 
@@ -74,8 +74,8 @@ public sealed class InvoiceServiceTests
             CustomerAccess(7001));
         var pdfText = await ReadTextAsync(result.Content!);
 
-        Assert.Contains("Template: historical-v7", pdfText);
-        Assert.Contains("Discontinued snapshot product", pdfText);
+        Assert.Contains("Invoice template: historical-v7", pdfText);
+        Assert.Contains("Archived product", pdfText);
         Assert.Equal("historical-v7", repository.InsertedDocument!.InvoiceTemplateVersion);
     }
 

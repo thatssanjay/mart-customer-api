@@ -8,5 +8,6 @@ public interface IWalletRedemptionPreviewService
         long customerId,
         int walletTypeId,
         decimal amount,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? storeId = null);
 }

@@ -1,7 +1,7 @@
 namespace Mart.Customer.Application.Cashback.Dtos;
 
 public sealed record CashbackSettingDto(
-    int StoreId,
+    long StoreId,
     decimal CashbackPercentage,
     int CashbackValidityDays,
     decimal MinimumPurchaseAmount,
