@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Domain.Orders;
 using Mart.Customer.Application.Orders.Dtos;
@@ -207,10 +208,9 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
         OrderDetailAccessScope accessScope,
         CancellationToken cancellationToken = default)
     {
-        var header = await GetHeaderQuery()
-            .SingleOrDefaultAsync(
-                order => order.CustomerOrderId == customerOrderId,
-                cancellationToken);
+        var header = await GetHeaderQuery(
+                order => order.CustomerOrderId == customerOrderId)
+            .SingleOrDefaultAsync(cancellationToken);
 
         return await GetDetailAsync(header, accessScope, cancellationToken);
     }
@@ -220,10 +220,9 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
         OrderDetailAccessScope accessScope,
         CancellationToken cancellationToken = default)
     {
-        var header = await GetHeaderQuery()
-            .SingleOrDefaultAsync(
-                order => order.InvoiceNumber == invoiceNumber,
-                cancellationToken);
+        var header = await GetHeaderQuery(
+                order => order.InvoiceNumber == invoiceNumber)
+            .SingleOrDefaultAsync(cancellationToken);
 
         return await GetDetailAsync(header, accessScope, cancellationToken);
     }
@@ -376,9 +375,11 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
                 true))
             .SingleOrDefaultAsync(cancellationToken);
 
-    private IQueryable<OrderDetailHeader> GetHeaderQuery() =>
+    private IQueryable<OrderDetailHeader> GetHeaderQuery(
+        Expression<Func<CustomerOrder, bool>> predicate) =>
         _dbContext.CustomerOrders
             .AsNoTracking()
+            .Where(predicate)
             .Select(order => new
             {
                 order.CustomerOrderId,

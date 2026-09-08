@@ -11,6 +11,7 @@ using Mart.Customer.Application.Customers.Commands.UpdateCustomer;
 using Mart.Customer.Application.Customers.Queries.GetCustomerByMobile;
 using Mart.Customer.Application.Customers.Queries.GetCustomers;
 using Mart.Customer.Application.Customers.Queries.SearchCustomers;
+using Mart.Customer.Application.Cashback.Queries.GetStoreWalletConfigurations;
 using Mart.Customer.Application.Wallets.Commands.ProvisionCustomerWallets;
 using Mart.Customer.Application.Wallets.Commands.UpdateCustomerWalletStatus;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletBuckets;
@@ -19,6 +20,7 @@ using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletDetail;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletTransactions;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWallets;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletBalances;
+using Mart.Customer.Application.Wallets.Commands.TopUpWallet;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -80,6 +82,19 @@ public sealed class CustomersController : ControllerBase
             cancellationToken);
 
         return Ok(customers);
+    }
+
+    [HttpGet("store-wallet-configurations")]
+    public async Task<IActionResult> GetStoreWalletConfigurations(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var configurations = await _sender.Send(
+            new GetStoreWalletConfigurationsQuery(pageNumber, pageSize),
+            cancellationToken);
+
+        return Ok(configurations);
     }
 
     [HttpGet("by-mobile/{mobileNumber}")]
@@ -168,17 +183,40 @@ public sealed class CustomersController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{customerId:long}/wallet-balances")]
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpGet("wallet-balances")]
     public async Task<IActionResult> GetWalletBalances(
-        long customerId,
+        [FromServices] IMartUserContext currentUser,
         CancellationToken cancellationToken)
     {
         var balances = await _sender.Send(
-            new GetCustomerWalletBalancesQuery(customerId), cancellationToken);
+            new GetCustomerWalletBalancesQuery(currentUser.UserId), cancellationToken);
 
         return balances is null
             ? NotFound(new { message = "Customer not found." })
             : Ok(balances);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpPost("wallet-top-ups")]
+    public async Task<IActionResult> TopUpWallet(
+        TopUpWalletRequest request,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new TopUpWalletCommand(
+                currentUser.UserId,
+                request.WalletCode,
+                request.Amount,
+                request.PaymentMode,
+                request.CardLast4,
+                request.ReferenceNumber,
+                request.PaymentReference,
+                currentUser.UserName ?? $"customer-{currentUser.UserId}"),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("~/api/customers/{customerId:long}/wallets")]

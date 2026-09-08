@@ -17,6 +17,7 @@ namespace Mart.Customer.Application.Orders.Services;
 public sealed class OrderCheckoutService : IOrderCheckoutService
 {
     private const string OrderReferenceType = "ORDER";
+    private const string AppPaymentMode = "APP";
     private readonly ICustomerCartRepository _cartRepository;
     private readonly ICustomerOrderRepository _orderRepository;
     private readonly IOrderCheckoutCalculator _checkoutCalculator;
@@ -110,6 +111,8 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
         IReadOnlyList<NormalizedPayment> payments,
         CancellationToken cancellationToken)
     {
+        var isAppPayment = payments.Any(payment =>
+            string.Equals(payment.PaymentMode, AppPaymentMode, StringComparison.OrdinalIgnoreCase));
         var cart = await _cartRepository.GetByCartNumberForCheckoutAsync(
             command.CartNumber!.Trim(),
             command.FranchiseId,
@@ -132,35 +135,31 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
 
         var preview = await _checkoutCalculator.CalculateAsync(
             cart,
-            command.WalletTypeId,
-            command.RedemptionAmount,
+            isAppPayment ? command.WalletTypeId : null,
+            isAppPayment ? command.RedemptionAmount : null,
             cancellationToken);
         EnsurePaymentsMatch(preview.FinalPayableAmount, payments);
 
-        var walletPayment = payments.SingleOrDefault(payment =>
-            string.Equals(payment.PaymentMode, "Wallet", StringComparison.OrdinalIgnoreCase));
-        if (walletPayment is not null)
+        if (isAppPayment)
         {
+            var appPayment = payments.Single(payment =>
+                string.Equals(payment.PaymentMode, AppPaymentMode, StringComparison.OrdinalIgnoreCase));
             var paymentReference = await _walletPaymentRequestService.ValidateForCheckoutAsync(
                 cart,
                 command.WalletPaymentToken,
                 preview.FinalPayableAmount,
                 cancellationToken);
             if (!string.Equals(
-                    walletPayment.TransactionReference,
+                    appPayment.TransactionReference,
                     paymentReference,
                     StringComparison.Ordinal))
             {
                 throw new DomainException("The wallet payment reference does not match the paid request.");
             }
-        }
-        else if (!string.IsNullOrWhiteSpace(command.WalletPaymentToken))
-        {
-            throw new DomainException("A wallet payment token can only be used with a Wallet payment.");
-        }
 
-        await _sender.Send(
-            new EnsureStoreWalletCommand(cart.CustomerId, cart.MartStoreId), cancellationToken);
+            await _sender.Send(
+                new EnsureStoreWalletCommand(cart.CustomerId, cart.MartStoreId), cancellationToken);
+        }
 
         var orderDate = DateTime.UtcNow;
         var order = CustomerOrder.Create(
@@ -175,7 +174,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
             preview.DiscountAmount,
             preview.GSTAmount,
             preview.NetAmount,
-            command.WalletTypeId,
+            isAppPayment ? command.WalletTypeId : null,
             preview.RedemptionAmount,
             preview.FinalPayableAmount,
             command.CashierId);
@@ -208,7 +207,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
             order.CustomerOrderId,
             cancellationToken);
 
-        if (preview.RedemptionAmount > 0)
+        if (isAppPayment && preview.RedemptionAmount > 0)
         {
             await _sender.Send(
                 new RedeemWalletCommand(
@@ -222,8 +221,11 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 cancellationToken);
         }
 
-        await CreditConfiguredRewardAsync(order, command.CashierId, cancellationToken);
-        await CreditConfiguredCashbackAsync(order, command.CashierId, cancellationToken);
+        if (isAppPayment)
+        {
+            await CreditConfiguredRewardAsync(order, command.CashierId, cancellationToken);
+            await CreditConfiguredCashbackAsync(order, command.CashierId, cancellationToken);
+        }
 
         cart.MarkPaid(preview.RedemptionAmount, orderDate);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -383,12 +385,12 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                 throw new DomainException("Payment transaction reference cannot exceed 100 characters.");
             }
 
-            if (mode is not "CASH" and not "UPI" and not "CARD" and not "POS" and not "WALLET")
+            if (mode is not "CASH" and not "UPI" and not "CARD" and not "POS" and not "WALLET" and not AppPaymentMode)
             {
-                throw new DomainException("Payment mode must be Cash, UPI, Card, POS, or Wallet.");
+                throw new DomainException("Payment mode must be Cash, UPI, Card, POS, Wallet, or APP.");
             }
 
-            if (mode is "UPI" or "CARD" or "POS" or "WALLET" && reference is null)
+            if (mode != "CASH" && reference is null)
             {
                 throw new DomainException($"A transaction reference is required for {mode} payments.");
             }
@@ -405,6 +407,7 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
                     "CARD" => "Card",
                     "POS" => "POS",
                     "WALLET" => "Wallet",
+                    AppPaymentMode => AppPaymentMode,
                     _ => "UPI"
                 },
                 payment.Amount,
@@ -441,8 +444,11 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
         CheckoutOrderCommand command,
         IReadOnlyList<NormalizedPayment> payments)
     {
-        var requestedRedemption = command.RedemptionAmount ?? 0m;
-        if (order.RedemptionWalletTypeId != command.WalletTypeId ||
+        var isAppPayment = payments.Any(payment =>
+            string.Equals(payment.PaymentMode, AppPaymentMode, StringComparison.OrdinalIgnoreCase));
+        var requestedWalletTypeId = isAppPayment ? command.WalletTypeId : null;
+        var requestedRedemption = isAppPayment ? command.RedemptionAmount ?? 0m : 0m;
+        if (order.RedemptionWalletTypeId != requestedWalletTypeId ||
             order.RedemptionAmount != requestedRedemption ||
             order.Payments.Count != payments.Count)
         {

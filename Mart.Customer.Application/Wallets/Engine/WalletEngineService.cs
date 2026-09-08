@@ -98,9 +98,9 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
             source.Payments.Sum(x => x.Amount) != source.PaidAmount)
             throw new DomainException("Order payment is incomplete or invalid.");
         if (source.Payments.Any(x => !IsEligiblePaymentMode(x.Mode)))
-            throw new DomainException("Only fully Wallet/App-paid orders are eligible for a wallet reward.");
+            throw new DomainException("Only fully APP-paid orders are eligible for a wallet reward.");
         if (source.Payments.Any(x => string.IsNullOrWhiteSpace(x.Reference)))
-            throw new DomainException("Wallet/App payment must have a settlement reference.");
+            throw new DomainException("APP payment must have a settlement reference.");
 
         var existing = await operations.FindAsync(WalletOperationKinds.SaleReward,
             WalletOperation.SaleBusinessKey(orderId), cancellationToken);
@@ -189,8 +189,8 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
 
     private static DateTime? ToUtc(DateTime? value) => value.HasValue
         ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
-    private static bool IsEligiblePaymentMode(string mode) => mode.Trim().ToUpperInvariant() is
-        "WALLET" or "APP";
+    private static bool IsEligiblePaymentMode(string mode) =>
+        string.Equals(mode.Trim(), "APP", StringComparison.OrdinalIgnoreCase);
 
     private async Task<WalletEngineResult> PostInTransactionAsync(WalletPostingRequest request,
         CancellationToken cancellationToken)

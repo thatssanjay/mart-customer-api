@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Mart.Customer.Application.Customers.Dtos;
 using Mart.Customer.Application.Orders.Dtos;
+using Mart.Customer.Api.Contracts.Orders;
 using Mart.Customer.Domain.Orders;
 using Mart.Customer.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -72,6 +73,45 @@ public sealed class GetCustomerOrdersEndpointTests : IClassFixture<OrderDetailAp
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);
         Assert.Equal(0, result.TotalPages);
+    }
+
+    [Fact]
+    public async Task GetCurrentCustomerOrders_UsesAuthenticatedCustomerAndReturnsInvoiceReference()
+    {
+        const long customerId = 8251;
+        var archivedOrder = await SeedOrderAsync(
+            customerId,
+            new DateTime(2026, 8, 5, 10, 0, 0, DateTimeKind.Utc),
+            archiveInvoice: true);
+        await SeedOrderAsync(customerId + 1, new DateTime(2026, 8, 6, 10, 0, 0, DateTimeKind.Utc));
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(OrderDetailAuthenticationHandler.CustomerIdHeader, customerId.ToString());
+
+        using var response = await client.GetAsync(
+            "/api/v1/customer/orders?pageNumber=1&pageSize=10",
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PagedResultDto<CustomerOrderHistoryItemResponse>>(
+            CancellationToken.None);
+        Assert.NotNull(result);
+        var order = Assert.Single(result.Items);
+        Assert.Equal(archivedOrder.CustomerOrderId, order.CustomerOrderId);
+        Assert.Equal(
+            $"/api/v1/orders/{archivedOrder.CustomerOrderId}/invoice-pdf?disposition=attachment",
+            order.InvoicePdfReference);
+    }
+
+    [Fact]
+    public async Task GetCurrentCustomerOrders_WhenCallerIsNotCustomer_ReturnsForbidden()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/v1/customer/orders",
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

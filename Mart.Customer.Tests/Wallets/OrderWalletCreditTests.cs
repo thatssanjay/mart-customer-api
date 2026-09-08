@@ -15,12 +15,10 @@ namespace Mart.Customer.Tests.Wallets;
 public sealed class OrderWalletCreditTests
 {
     [Theory]
-    [InlineData("Wallet")]
-    [InlineData("WALLET")]
-    [InlineData("wallet")]
-    [InlineData(" Wallet ")]
     [InlineData("APP")]
-    public async Task AppPaymentStoredAsWalletReceivesAllocationOnce(string mode)
+    [InlineData("app")]
+    [InlineData(" APP ")]
+    public async Task AppPaymentReceivesAllocationOnce(string mode)
     {
         await using var f = await WalletEngineFixture.CreateAsync();
         var (order, access) = await SeedAsync(f, mode: mode);
@@ -93,9 +91,11 @@ public sealed class OrderWalletCreditTests
     [InlineData("Paid", "APP", "500")]
     [InlineData("Paid", "Cash", "1000")]
     [InlineData("Pending", "Wallet", "1000")]
+    [InlineData("Paid", "Wallet", "1000")]
     [InlineData("Paid", "Wallet", "500")]
     [InlineData("Paid", "UPI", "1000")]
     [InlineData("Paid", "Card", "1000")]
+    [InlineData("Paid", "POS", "1000")]
     public async Task RejectsUnpaidAndIneligibleOrders(string status, string mode, string paid)
     {
         await using var f = await WalletEngineFixture.CreateAsync();
@@ -261,7 +261,7 @@ public sealed class OrderWalletCreditTests
     }
 
     private static async Task<(CustomerOrder, OrderWalletAccess)> SeedAsync(WalletEngineFixture f,
-        string? conversion = null, string mode = "Wallet", decimal amount = 1000m)
+        string? conversion = null, string mode = "APP", decimal amount = 1000m)
     {
         await f.SeedTypesAsync();
         var customer = New<Mart.Customer.Domain.Customers.Customer>();

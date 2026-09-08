@@ -19,7 +19,9 @@ public interface IWalletPaymentRequestService
 
     Task<WalletPaymentCartDto?> GetCartForCustomerAsync(
         string paymentToken,
-        long customerId,
+        string cartNumber,
+        long qrCustomerId,
+        long authenticatedCustomerId,
         CancellationToken cancellationToken = default);
 
     Task<string> ValidateForCheckoutAsync(

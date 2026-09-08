@@ -23,7 +23,7 @@ public sealed class WalletCreationFlowTests
     [Theory]
     [InlineData(100, true)]
     [InlineData(1, false)]
-    public async Task Checkout_StoreWalletCommitsWithPayment_OrRollsBackWithFailedStock(int stock, bool succeeds)
+    public async Task Checkout_StoreWalletCommitsWithAppPayment_OrRollsBackWithFailedStock(int stock, bool succeeds)
     {
         await using var fixture = await CheckoutFixture.CreateAsync();
         var cart = await fixture.SeedCartAsync("STORE-WALLET-CHECKOUT", initialStockQuantity: stock);
@@ -35,8 +35,9 @@ public sealed class WalletCreationFlowTests
         typeof(WalletType).GetProperty(nameof(WalletType.CreatedDate))!.SetValue(type, DateTime.UtcNow);
         fixture.Db.WalletTypes.Add(type);
         await fixture.Db.SaveChangesAsync();
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 224.20m);
         var command = new CheckoutOrderCommand(cart.CartNumber, 7, 11, 41, null, null,
-            [new CheckoutPayment("Cash", 224.20m, null)]);
+            appPayment.Token, [new CheckoutPayment("APP", 224.20m, appPayment.Reference)]);
 
         if (succeeds)
         {
@@ -54,6 +55,29 @@ public sealed class WalletCreationFlowTests
             Assert.Empty(await fixture.Db.CustomerWallets.AsNoTracking().ToListAsync());
             Assert.Empty(await fixture.Db.CustomerOrderPayments.AsNoTracking().ToListAsync());
         }
+    }
+
+    [Fact]
+    public async Task Checkout_CashPayment_DoesNotCreateStoreWallet()
+    {
+        await using var fixture = await CheckoutFixture.CreateAsync();
+        var cart = await fixture.SeedCartAsync("STORE-WALLET-CASH-CHECKOUT");
+        var type = (WalletType)Activator.CreateInstance(typeof(WalletType), nonPublic: true)!;
+        typeof(WalletType).GetProperty(nameof(WalletType.Id))!.SetValue(type, 3);
+        typeof(WalletType).GetProperty(nameof(WalletType.Name))!.SetValue(type, "Mart Wallet");
+        typeof(WalletType).GetProperty(nameof(WalletType.Code))!.SetValue(type, "MART_WALLET");
+        typeof(WalletType).GetProperty(nameof(WalletType.IsActive))!.SetValue(type, true);
+        typeof(WalletType).GetProperty(nameof(WalletType.CreatedDate))!.SetValue(type, DateTime.UtcNow);
+        fixture.Db.WalletTypes.Add(type);
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.CheckoutAsync(new CheckoutOrderCommand(
+            cart.CartNumber, 7, 11, 41, null, null,
+            [new CheckoutPayment("Cash", 224.20m, null)]));
+
+        Assert.NotNull(result);
+        Assert.Empty(await fixture.Db.CustomerWallets.AsNoTracking().ToListAsync());
+        Assert.Empty(await fixture.Db.WalletTransactions.AsNoTracking().ToListAsync());
     }
 
     [Fact]

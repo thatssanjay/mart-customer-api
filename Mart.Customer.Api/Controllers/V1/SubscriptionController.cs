@@ -3,6 +3,8 @@ using Mart.Customer.Api.Auth;
 using Mart.Customer.Api.Contracts.Subscriptions;
 using Mart.Customer.Application.Subscriptions.Commands.CreateCustomerSubscription;
 using Mart.Customer.Application.Subscriptions.Commands.UpdateSubscriptionPaymentDetails;
+using Mart.Customer.Application.Subscriptions.Queries.GetActiveSubscriptionPlans;
+using Mart.Customer.Application.Subscriptions.Queries.GetCustomerSubscriptions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +26,13 @@ public sealed class SubscriptionController : ControllerBase
         _currentUser = currentUser;
     }
 
+    [HttpGet("active-plans")]
+    public async Task<IActionResult> GetActivePlans(CancellationToken cancellationToken)
+    {
+        var plans = await _sender.Send(new GetActiveSubscriptionPlansQuery(), cancellationToken);
+        return Ok(plans);
+    }
+
     [HttpPost("CreateCustomerSubscription")]
     public async Task<IActionResult> CreateCustomerSubscription(
         CreateCustomerSubscriptionRequest request,
@@ -40,6 +49,30 @@ public sealed class SubscriptionController : ControllerBase
             cancellationToken);
 
         return Created(string.Empty, subscription);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpPost("subscribe")]
+    public async Task<IActionResult> Subscribe(
+        SubscribeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var customerId = _currentUser.UserId;
+        var subscription = await _sender.Send(
+            new CreateCustomerSubscriptionCommand(
+                customerId, request.SubscriptionPlanId, null, null, null, customerId),
+            cancellationToken);
+
+        return Created(string.Empty, subscription);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpGet("my-subscriptions")]
+    public async Task<IActionResult> GetMySubscriptions(CancellationToken cancellationToken)
+    {
+        var subscriptions = await _sender.Send(
+            new GetCustomerSubscriptionsQuery(_currentUser.UserId), cancellationToken);
+        return Ok(subscriptions);
     }
 
     [HttpPut("UpdateSubscriptionPaymentDetails/{id:long}/customers/{customerId:long}")]

@@ -83,9 +83,16 @@ public sealed class WalletPaymentRequestService : IWalletPaymentRequestService
 
     public async Task<WalletPaymentCartDto?> GetCartForCustomerAsync(
         string paymentToken,
-        long customerId,
+        string cartNumber,
+        long qrCustomerId,
+        long authenticatedCustomerId,
         CancellationToken cancellationToken = default)
     {
+        if (qrCustomerId != authenticatedCustomerId)
+        {
+            throw new UnauthorizedAccessException("This wallet payment does not belong to the authenticated customer.");
+        }
+
         var cartId = ParseCartId(paymentToken);
         var cart = await _cartRepository.GetByIdForWalletAsync(cartId, cancellationToken);
         if (cart is null)
@@ -93,12 +100,17 @@ public sealed class WalletPaymentRequestService : IWalletPaymentRequestService
             return null;
         }
 
-        if (cart.CustomerId != customerId)
+        if (cart.CustomerId != authenticatedCustomerId || cart.CustomerId != qrCustomerId)
         {
             throw new UnauthorizedAccessException("This wallet payment does not belong to the authenticated customer.");
         }
 
         var attempt = ValidateToken(cart, paymentToken);
+        if (!string.Equals(cart.CartNumber, cartNumber, StringComparison.Ordinal))
+        {
+            throw new DomainException("The wallet payment does not match this cart number.");
+        }
+
         attempt = await ExpireIfNeededAsync(cart, attempt, cancellationToken);
 
         return new WalletPaymentCartDto(

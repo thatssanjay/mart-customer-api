@@ -27,7 +27,7 @@ public sealed class CheckoutOrderCommandValidator : AbstractValidator<CheckoutOr
                 .When(item => item.TransactionReference is not null);
         });
 
-        When(command => command.RedemptionAmount.HasValue, () =>
+        When(command => IsAppPayment(command) && command.RedemptionAmount.HasValue, () =>
         {
             RuleFor(command => command.RedemptionAmount!.Value)
                 .GreaterThan(0)
@@ -36,7 +36,11 @@ public sealed class CheckoutOrderCommandValidator : AbstractValidator<CheckoutOr
                 .WithMessage("Redemption amount must have no more than two decimal places.");
             RuleFor(command => command.WalletTypeId).NotNull().GreaterThan(0);
         });
-        When(command => command.WalletTypeId.HasValue, () =>
+        When(command => IsAppPayment(command) && command.WalletTypeId.HasValue, () =>
             RuleFor(command => command.RedemptionAmount).NotNull());
     }
+
+    private static bool IsAppPayment(CheckoutOrderCommand command) =>
+        command.Payments?.Any(payment =>
+            string.Equals(payment.PaymentMode?.Trim(), "APP", StringComparison.OrdinalIgnoreCase)) == true;
 }

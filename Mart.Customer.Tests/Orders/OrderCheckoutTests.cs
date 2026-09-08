@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Mart.Customer.Application;
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Orders.Commands.CheckoutOrder;
@@ -83,6 +85,8 @@ public sealed class OrderCheckoutServiceTests
         Assert.Equal(100m, movement.PreviousQuantity);
         Assert.Equal(98m, movement.NewQuantity);
         Assert.Equal(41, movement.CreatedBy);
+        Assert.Empty(await fixture.Db.CustomerWallets.AsNoTracking().ToListAsync());
+        Assert.Empty(await fixture.Db.WalletTransactions.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -146,15 +150,56 @@ public sealed class OrderCheckoutServiceTests
         Assert.Equal(224.20m, result.Payments.Sum(payment => payment.Amount));
     }
 
+    [Theory]
+    [InlineData("Cash", null)]
+    [InlineData("POS", "pos-001")]
+    [InlineData("UPI", "upi-001")]
+    [InlineData("Wallet", "wallet-001")]
+    public async Task Checkout_WithNonAppPayment_IgnoresWalletInputsAndDoesNotTouchWallet(
+        string paymentMode,
+        string? reference)
+    {
+        await using var fixture = await CheckoutFixture.CreateAsync();
+        var cart = await fixture.SeedCartAsync($"CART-CHECKOUT-NON-APP-{paymentMode}");
+        await fixture.SeedWalletAsync(cart.CustomerId, 3091, 20m, "CASHBACK");
+        await fixture.SeedActiveSubscriptionAsync(cart.CustomerId, 3091, 10m);
+        await fixture.SeedCashbackAsync(10m, 15m);
+
+        var command = new CheckoutOrderCommand(
+            cart.CartNumber,
+            7,
+            11,
+            41,
+            3091,
+            30m,
+            "invalid-wallet-token-that-must-not-be-validated",
+            [new CheckoutPayment(paymentMode, 224.20m, reference)]);
+
+        var result = await fixture.CheckoutAsync(command);
+
+        Assert.NotNull(result);
+        Assert.Equal(0m, result.RedemptionAmount);
+        Assert.Equal(224.20m, result.FinalPayableAmount);
+        Assert.Equal(0m, result.RewardEarned);
+        Assert.Equal(0m, result.CashbackEarned);
+        fixture.ClearTracking();
+        Assert.Equal(20m, await fixture.Db.CustomerWallets.AsNoTracking()
+            .Select(wallet => wallet.CurrentBalance)
+            .SingleAsync());
+        Assert.Empty(await fixture.Db.WalletTransactions.AsNoTracking().ToListAsync());
+    }
+
     [Fact]
     public async Task Checkout_WithRedemption_DebitsWalletInsideCheckoutTransaction()
     {
         await using var fixture = await CheckoutFixture.CreateAsync();
         var cart = await fixture.SeedCartAsync("CART-CHECKOUT-REDEEM");
         await fixture.SeedWalletAsync(cart.CustomerId, 3101, 100m);
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 174.20m);
 
         var result = await fixture.CheckoutAsync(new CheckoutOrderCommand(
-            cart.CartNumber, 7, 11, 41, 3101, 50m, [Cash(174.20m)]));
+            cart.CartNumber, 7, 11, 41, 3101, 50m, appPayment.Token,
+            [App(174.20m, appPayment.Reference)]));
 
         Assert.NotNull(result);
         Assert.Equal(50m, result.RedemptionAmount);
@@ -169,9 +214,11 @@ public sealed class OrderCheckoutServiceTests
         await using var fixture = await CheckoutFixture.CreateAsync();
         var cart = await fixture.SeedCartAsync("CART-CHECKOUT-INSUFFICIENT");
         await fixture.SeedWalletAsync(cart.CustomerId, 3201, 20m);
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 194.20m);
 
         var exception = await Assert.ThrowsAsync<DomainException>(() => fixture.CheckoutAsync(
-            new CheckoutOrderCommand(cart.CartNumber, 7, 11, 41, 3201, 30m, [Cash(194.20m)])));
+            new CheckoutOrderCommand(cart.CartNumber, 7, 11, 41, 3201, 30m, appPayment.Token,
+                [App(194.20m, appPayment.Reference)])));
 
         Assert.Equal("Insufficient wallet balance.", exception.Message);
         fixture.ClearTracking();
@@ -274,8 +321,10 @@ public sealed class OrderCheckoutServiceTests
         await using var fixture = await CheckoutFixture.CreateAsync();
         var cart = await fixture.SeedCartAsync("CART-CHECKOUT-REDEEM-RETRY");
         await fixture.SeedWalletAsync(cart.CustomerId, 3151, 100m);
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 174.20m);
         var command = new CheckoutOrderCommand(
-            cart.CartNumber, 7, 11, 41, 3151, 50m, [Cash(174.20m)]);
+            cart.CartNumber, 7, 11, 41, 3151, 50m, appPayment.Token,
+            [App(174.20m, appPayment.Reference)]);
 
         var first = await fixture.CheckoutAsync(command);
         fixture.ClearTracking();
@@ -297,8 +346,11 @@ public sealed class OrderCheckoutServiceTests
         var cart = await fixture.SeedCartAsync("CART-CHECKOUT-REWARD");
         await fixture.SeedWalletAsync(cart.CustomerId, 3161, 0m);
         await fixture.SeedActiveSubscriptionAsync(cart.CustomerId, 3161, 10m);
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 224.20m);
 
-        var result = await fixture.CheckoutAsync(Command(cart.CartNumber, Cash(224.20m)));
+        var result = await fixture.CheckoutAsync(new CheckoutOrderCommand(
+            cart.CartNumber, 7, 11, 41, null, null, appPayment.Token,
+            [App(224.20m, appPayment.Reference)]));
 
         Assert.NotNull(result);
         Assert.Equal(22.42m, result.RewardEarned);
@@ -316,8 +368,11 @@ public sealed class OrderCheckoutServiceTests
         var cart = await fixture.SeedCartAsync("CART-CHECKOUT-CASHBACK");
         await fixture.SeedWalletAsync(cart.CustomerId, 3171, 0m, "CASHBACK");
         await fixture.SeedCashbackAsync(10m, 15m);
+        var appPayment = await fixture.PrepareAppPaymentAsync(cart.CustomerCartId, 224.20m);
 
-        var result = await fixture.CheckoutAsync(Command(cart.CartNumber, Cash(224.20m)));
+        var result = await fixture.CheckoutAsync(new CheckoutOrderCommand(
+            cart.CartNumber, 7, 11, 41, null, null, appPayment.Token,
+            [App(224.20m, appPayment.Reference)]));
 
         Assert.NotNull(result);
         Assert.Equal(15m, result.CashbackEarned);
@@ -446,6 +501,7 @@ public sealed class OrderCheckoutServiceTests
     private static CheckoutPayment Cash(decimal amount) => new("Cash", amount, null);
     private static CheckoutPayment Upi(decimal amount, string reference) => new("UPI", amount, reference);
     private static CheckoutPayment Card(decimal amount, string reference) => new("Card", amount, reference);
+    private static CheckoutPayment App(decimal amount, string reference) => new("APP", amount, reference);
 
     private static Mart.Customer.Domain.Orders.CustomerOrder CreateSnapshotOrder()
     {
@@ -713,6 +769,19 @@ internal sealed class CheckoutFixture : IAsyncDisposable
     public Task<OrderCheckoutDto?> CheckoutAsync(CheckoutOrderCommand command) =>
         _scope.ServiceProvider.GetRequiredService<IOrderCheckoutService>()
             .CheckoutAsync(command, CancellationToken.None);
+
+    public async Task<(string Token, string Reference)> PrepareAppPaymentAsync(long cartId, decimal amount)
+    {
+        var token = $"{cartId}.app-checkout-test";
+        var reference = $"APP-{cartId}";
+        var tokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+        var cart = await Db.CustomerCarts.SingleAsync(item => item.CustomerCartId == cartId);
+        cart.BeginWalletPaymentAttempt(reference, tokenHash, amount, DateTime.UtcNow.AddMinutes(5));
+        cart.UpdatePaymentStatus("PAID");
+        await Db.SaveChangesAsync();
+        ClearTracking();
+        return (token, reference);
+    }
 
     public void ClearTracking() => Db.ChangeTracker.Clear();
 

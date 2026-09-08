@@ -1,5 +1,6 @@
 using FluentValidation;
 using System.Data.Common;
+using Mart.Customer.Api.Auth;
 using Mart.Customer.Api.Controllers.V1;
 using Mart.Customer.Application;
 using Mart.Customer.Application.Abstractions.Data;
@@ -9,6 +10,7 @@ using Mart.Customer.Domain.Wallets;
 using Mart.Customer.Persistence;
 using Mart.Customer.Persistence.MasterData;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -20,7 +22,25 @@ namespace Mart.Customer.Tests.Wallets;
 public sealed class GetCustomerWalletBalancesTests
 {
     [Fact]
-    public async Task Balances_ReturnsActiveTypesAndSeparateActiveStores_InDisplayOrder()
+    public void BalanceEndpoint_UsesCustomerTokenContextWithoutCustomerIdInput()
+    {
+        var method = typeof(CustomersController).GetMethod(nameof(CustomersController.GetWalletBalances))!;
+        var route = Assert.Single(method
+            .GetCustomAttributes(typeof(HttpGetAttribute), false)
+            .Cast<HttpGetAttribute>());
+        var authorization = Assert.Single(method
+            .GetCustomAttributes(typeof(AuthorizeAttribute), false)
+            .Cast<AuthorizeAttribute>());
+
+        Assert.Equal("wallet-balances", route.Template);
+        Assert.Equal(MartAuthorizationPolicies.MobileCustomer, authorization.Policy);
+        Assert.Contains(method.GetParameters(), parameter => parameter.ParameterType == typeof(IMartUserContext));
+        Assert.DoesNotContain(method.GetParameters(), parameter =>
+            string.Equals(parameter.Name, "customerId", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Balances_UsesAuthenticatedCustomerAndReturnsExistingResponse()
     {
         await using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -42,7 +62,7 @@ public sealed class GetCustomerWalletBalancesTests
 
         var controller = new CustomersController(scope.ServiceProvider.GetRequiredService<ISender>());
         var response = Assert.IsType<OkObjectResult>(
-            await controller.GetWalletBalances(1001, CancellationToken.None));
+            await controller.GetWalletBalances(new StubMartUserContext(1001), CancellationToken.None));
         var result = Assert.IsType<CustomerWalletBalancesDto>(response.Value);
 
         Assert.Equal(1001, result.CustomerId);
@@ -91,7 +111,7 @@ public sealed class GetCustomerWalletBalancesTests
         var controller = new CustomersController(scope.ServiceProvider.GetRequiredService<ISender>());
 
         Assert.IsType<NotFoundObjectResult>(
-            await controller.GetWalletBalances(999, CancellationToken.None));
+            await controller.GetWalletBalances(new StubMartUserContext(999), CancellationToken.None));
     }
 
     [Fact]
@@ -151,6 +171,16 @@ public sealed class GetCustomerWalletBalancesTests
     }
 
     private sealed class ConnectionPreventedException : Exception;
+
+    private sealed class StubMartUserContext(long customerId) : IMartUserContext
+    {
+        public long UserId => customerId;
+        public long FranchiseId => throw new NotSupportedException();
+        public long StoreId => throw new NotSupportedException();
+        public string? UserName => null;
+        public string? Role => null;
+        public string? LoginType => "customer";
+    }
 
     private sealed class StopBeforeConnectionInterceptor : DbConnectionInterceptor
     {

@@ -12,6 +12,7 @@ using Mart.Customer.Application.Orders.Queries.GetCustomerOrders;
 using Mart.Customer.Application.Orders.Queries.SearchOrders;
 using Mart.Customer.Application.Orders.Queries.VerifyOrder;
 using Mart.Customer.Application.Orders.Services;
+using Mart.Customer.Application.Customers.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -53,11 +54,25 @@ public sealed class OrdersController : ControllerBase
             return Forbid();
         }
 
-        var orders = await _sender.Send(
-            new GetCustomerOrdersQuery(customerId, pageNumber, pageSize),
-            cancellationToken);
+        return Ok(await GetCustomerOrdersPageAsync(
+            customerId,
+            pageNumber,
+            pageSize,
+            cancellationToken));
+    }
 
-        return Ok(orders);
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpGet("~/api/v{version:apiVersion}/customer/orders")]
+    public async Task<IActionResult> GetCurrentCustomerOrders(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await GetCustomerOrdersPageAsync(
+            _currentUser.UserId,
+            pageNumber,
+            pageSize,
+            cancellationToken));
     }
 
     [HttpGet("{orderId:long}")]
@@ -268,6 +283,24 @@ public sealed class OrdersController : ControllerBase
             new GetMartUserAccessScopeQuery(_currentUser.UserId),
             cancellationToken);
         return new OrderDetailAccessScope(null, access.FranchiseId, access.StoreId);
+    }
+
+    private async Task<PagedResultDto<CustomerOrderHistoryItemResponse>> GetCustomerOrdersPageAsync(
+        long customerId,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var orders = await _sender.Send(
+            new GetCustomerOrdersQuery(customerId, pageNumber, pageSize),
+            cancellationToken);
+
+        return new PagedResultDto<CustomerOrderHistoryItemResponse>(
+            orders.Items.Select(CustomerOrderHistoryItemResponse.FromDto).ToList(),
+            orders.PageNumber,
+            orders.PageSize,
+            orders.TotalCount,
+            orders.TotalPages);
     }
 
     private IActionResult ToOrderDetailActionResult(OrderDetailResult result) =>

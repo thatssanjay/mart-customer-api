@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IWalletTypeRepository, WalletTypeRepository>();
         services.AddScoped<ICustomerWalletRepository, CustomerWalletRepository>();
         services.AddScoped<IWalletTransactionRepository, WalletTransactionRepository>();
+        services.AddScoped<IWalletTopUpPaymentRepository, WalletTopUpPaymentRepository>();
         services.AddScoped<IWalletBalanceBucketRepository, WalletBalanceBucketRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IWalletOperationRepository, WalletOperationRepository>();

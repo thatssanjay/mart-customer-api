@@ -7,4 +7,12 @@ public interface ICashbackConfigurationRepository
     Task<IReadOnlyList<CashbackSettingDto>> GetActiveAsync(
         DateTime currentDate,
         CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<StoreWalletConfigurationDto> Items, int TotalRecords)>
+        GetStoreWalletConfigurationsPagedAsync(
+            string walletCode,
+            DateTime currentDate,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
 }

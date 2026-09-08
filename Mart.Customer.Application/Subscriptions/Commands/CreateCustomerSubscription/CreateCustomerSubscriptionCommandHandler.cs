@@ -23,7 +23,26 @@ public sealed class CreateCustomerSubscriptionCommandHandler
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<CreatedCustomerSubscriptionDto> Handle(
+    public Task<CreatedCustomerSubscriptionDto> Handle(
+        CreateCustomerSubscriptionCommand request,
+        CancellationToken cancellationToken)
+    {
+        return _unitOfWork.ExecuteInTransactionAsync(async token =>
+        {
+            try
+            {
+                return await CreateAsync(request, token);
+            }
+            catch
+            {
+                // Discard rolled-back entities before the execution strategy retries.
+                _unitOfWork.ClearChanges();
+                throw;
+            }
+        }, cancellationToken);
+    }
+
+    private async Task<CreatedCustomerSubscriptionDto> CreateAsync(
         CreateCustomerSubscriptionCommand request,
         CancellationToken cancellationToken)
     {
@@ -31,6 +50,11 @@ public sealed class CreateCustomerSubscriptionCommandHandler
         if (customer is null)
         {
             throw new DomainException("Customer not found.");
+        }
+
+        if (!customer.IsActive || customer.IsBlocked)
+        {
+            throw new DomainException("Customer is inactive or blocked.");
         }
 
         var plan = await _subscriptionRepository.GetPlanByIdAsync(
@@ -46,6 +70,12 @@ public sealed class CreateCustomerSubscriptionCommandHandler
         if (!plan.IsEffectiveOn(createdOn))
         {
             throw new DomainException("Subscription plan is not active.");
+        }
+
+        if (await _subscriptionRepository.HasActiveSubscriptionAsync(
+                request.CustomerId, request.SubscriptionPlanId, cancellationToken))
+        {
+            throw new DomainException("Customer already has an active subscription for this plan.");
         }
 
         var subscription = CustomerSubscription.Create(

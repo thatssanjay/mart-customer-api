@@ -66,6 +66,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
 
+    public DbSet<WalletTopUpPayment> WalletTopUpPayments => Set<WalletTopUpPayment>();
+
     public DbSet<WalletBalanceBucket> WalletBalanceBuckets => Set<WalletBalanceBucket>();
 
     public DbSet<WalletOperation> WalletOperations => Set<WalletOperation>();
@@ -91,6 +93,12 @@ public sealed class ApplicationDbContext : DbContext
             if ((entry.Entity is WalletTransaction or WalletOperationComponent) &&
                 entry.State is EntityState.Modified or EntityState.Deleted)
                 throw new InvalidOperationException("Wallet ledger and component history is immutable.");
+            if (entry.Entity is WalletTopUpPayment &&
+                (entry.State == EntityState.Deleted ||
+                 (entry.State == EntityState.Modified &&
+                  entry.OriginalValues.GetValue<string>(nameof(WalletTopUpPayment.Status)) ==
+                  WalletTopUpPayment.SuccessfulStatus)))
+                throw new InvalidOperationException("Completed wallet top-up payments are immutable.");
             if (entry.Entity is WalletOperation &&
                 (entry.State == EntityState.Deleted || (entry.State == EntityState.Modified &&
                 entry.OriginalValues.GetValue<string>(nameof(WalletOperation.Status)) == WalletOperationStatuses.Completed)))

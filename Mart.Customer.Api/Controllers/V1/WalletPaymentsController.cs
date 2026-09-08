@@ -75,10 +75,29 @@ public sealed class WalletPaymentsController : ControllerBase
     [HttpGet("{paymentToken}")]
     public async Task<IActionResult> GetForCustomer(
         string paymentToken,
+        [FromQuery] GetWalletPaymentRequest request,
         CancellationToken cancellationToken)
     {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.CartNumber) || request.CartNumber.Length > 50)
+        {
+            errors["cartNumber"] = ["Cart number is required and cannot exceed 50 characters."];
+        }
+
+        if (request.CustomerId is null or <= 0)
+        {
+            errors["customerId"] = ["Customer ID must be greater than zero."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors));
+        }
+
         var payment = await _walletPayments.GetCartForCustomerAsync(
             paymentToken,
+            request.CartNumber!.Trim(),
+            request.CustomerId!.Value,
             _currentUser.UserId,
             cancellationToken);
 
