@@ -1,0 +1,22 @@
+namespace Mart.Customer.Application.Referrals.Dtos;
+
+public sealed record ReferralBenefitDto(
+    decimal RewardPoints,
+    int WalletTypeId,
+    string WalletName,
+    string WalletCode);
+
+public sealed record CustomerReferralDto(
+    long CustomerReferralId,
+    string ReferredMobileNumber,
+    string ReferralCode,
+    string Status,
+    DateTime CreatedOn,
+    DateTime? OnboardedOn);
+
+public sealed record CreatedCustomerReferralDto(
+    long CustomerReferralId,
+    string ReferredMobileNumber,
+    string ReferralCode,
+    string Status,
+    DateTime CreatedOn);

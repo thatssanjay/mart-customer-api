@@ -55,6 +55,7 @@ internal sealed class CashbackConfigurationRepository : ICashbackConfigurationRe
                   (setting.EndDate == null || setting.EndDate >= currentDate) &&
                   walletSetting.IsActive &&
                   walletSetting.ConversionRate.HasValue &&
+                  walletSetting.ConversionRate > 0 &&
                   (walletSetting.IsNoExpiry ||
                    ((walletSetting.StartDate == null || walletSetting.StartDate <= currentDate) &&
                     (walletSetting.EndDate == null || walletSetting.EndDate > currentDate))) &&
@@ -83,17 +84,12 @@ internal sealed class CashbackConfigurationRepository : ICashbackConfigurationRe
             join newest in newestSettingPerStore
                 on new { configuration.StoreId, configuration.CashbackSettingId }
                 equals new { newest.StoreId, newest.CashbackSettingId }
-            select new
-            {
-                configuration.StoreId,
-                configuration.StoreName,
-                configuration.City,
-                configuration.ConversionRate
-            };
+            select configuration;
 
         var totalRecords = await distinctConfigurations.CountAsync(cancellationToken);
         var rows = await distinctConfigurations
-            .OrderBy(configuration => configuration.StoreId)
+            .OrderByDescending(configuration => configuration.ConversionRate)
+            .ThenBy(configuration => configuration.StoreId)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -107,5 +103,44 @@ internal sealed class CashbackConfigurationRepository : ICashbackConfigurationRe
             .ToList();
 
         return (items, totalRecords);
+    }
+
+    public Task<ActiveStoreWalletConversionDto?> GetActiveStoreWalletConversionAsync(
+        long storeId,
+        string walletCode,
+        DateTime currentDate,
+        CancellationToken cancellationToken = default)
+    {
+        return (
+            from setting in _dbContext.CashbackConfigurations.AsNoTracking()
+            join walletSetting in _dbContext.CashbackSettingWallets.AsNoTracking()
+                on setting.CashbackSettingId equals walletSetting.CashbackSettingId
+            join walletType in _dbContext.WalletTypes.AsNoTracking()
+                on walletSetting.WalletTypeId equals walletType.Id
+            join store in _dbContext.MartStores.AsNoTracking()
+                on setting.StoreId equals store.StoreId
+            where setting.StoreId == storeId &&
+                  setting.IsActive == true &&
+                  (setting.StartDate == null || setting.StartDate <= currentDate) &&
+                  (setting.EndDate == null || setting.EndDate >= currentDate) &&
+                  walletSetting.IsActive &&
+                  walletSetting.ConversionRate.HasValue &&
+                  walletSetting.ConversionRate > 0 &&
+                  (walletSetting.IsNoExpiry ||
+                   ((walletSetting.StartDate == null || walletSetting.StartDate <= currentDate) &&
+                    (walletSetting.EndDate == null || walletSetting.EndDate > currentDate))) &&
+                  walletType.IsActive &&
+                  walletType.Code.ToUpper() == walletCode &&
+                  store.IsActive
+            orderby setting.CashbackSettingId descending, walletSetting.Id descending
+            select new ActiveStoreWalletConversionDto(
+                store.StoreId,
+                store.StoreName,
+                walletType.Id,
+                setting.CashbackSettingId,
+                walletSetting.Id,
+                walletSetting.ConversionRate.GetValueOrDefault(),
+                walletSetting.IsNoExpiry ? null : walletSetting.EndDate))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

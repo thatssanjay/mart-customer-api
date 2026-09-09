@@ -13,6 +13,10 @@ public sealed class GetCustomerWalletTransactionsQueryValidator
         RuleFor(query => query.WalletTypeId)
             .GreaterThan(0);
 
+        RuleFor(query => query.StoreId)
+            .GreaterThan(0)
+            .When(query => query.StoreId.HasValue);
+
         RuleFor(query => query.PageNumber)
             .GreaterThan(0);
 

@@ -29,6 +29,12 @@ public interface IWalletTransactionRepository
         long originalTransactionId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<WalletTransaction>> GetByReferenceAsync(
+        long customerId,
+        string referenceType,
+        long referenceId,
+        CancellationToken cancellationToken = default);
+
     Task<WalletTransactionDetailDto?> GetByTransactionNumberAsync(
         string transactionNumber,
         CancellationToken cancellationToken = default);

@@ -54,5 +54,8 @@ public sealed class CreateCustomerCommandValidator : AbstractValidator<CreateCus
 
         RuleFor(command => command.RegistrationSource)
             .MaximumLength(100);
+
+        RuleFor(command => command.ReferralCode)
+            .MaximumLength(32);
     }
 }

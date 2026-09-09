@@ -6,6 +6,7 @@ using Mart.Customer.Domain.Carts;
 using Mart.Customer.Domain.Subscriptions;
 using Mart.Customer.Domain.Wallets;
 using Mart.Customer.Domain.Orders;
+using Mart.Customer.Domain.Referrals;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
 using Mart.Customer.Persistence.MasterData;
 
@@ -59,6 +60,10 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
 
     public DbSet<CustomerSubscription> CustomerSubscriptions => Set<CustomerSubscription>();
+
+    public DbSet<ReferralConfiguration> ReferralConfigurations => Set<ReferralConfiguration>();
+
+    public DbSet<CustomerReferral> CustomerReferrals => Set<CustomerReferral>();
 
     public DbSet<WalletType> WalletTypes => Set<WalletType>();
 

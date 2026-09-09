@@ -12,4 +12,7 @@ public sealed class CreateAppCustomerRequest
 
     [Required, MaxLength(10)]
     public string? Otp { get; init; }
+
+    [MaxLength(32)]
+    public string? ReferralCode { get; init; }
 }

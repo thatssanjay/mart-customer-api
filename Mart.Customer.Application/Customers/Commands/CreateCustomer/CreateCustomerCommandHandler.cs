@@ -4,6 +4,7 @@ using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Application.Customers.Dtos;
 using Mart.Customer.Application.Common.Utilities;
 using Mart.Customer.Domain.Common;
+using Mart.Customer.Domain.Referrals;
 using MediatR;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
 
@@ -14,12 +15,18 @@ public sealed class CreateCustomerCommandHandler : IRequestHandler<CreateCustome
     private readonly ICustomerRepository _customerRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ISender _sender;
+    private readonly ICustomerReferralRepository? _referralRepository;
 
-    public CreateCustomerCommandHandler(ICustomerRepository customerRepository, IUnitOfWork unitOfWork, ISender sender)
+    public CreateCustomerCommandHandler(
+        ICustomerRepository customerRepository,
+        IUnitOfWork unitOfWork,
+        ISender sender,
+        ICustomerReferralRepository? referralRepository = null)
     {
         _customerRepository = customerRepository;
         _unitOfWork = unitOfWork;
         _sender = sender;
+        _referralRepository = referralRepository;
     }
 
     public Task<CustomerDto> Handle(CreateCustomerCommand request, CancellationToken cancellationToken) =>
@@ -27,6 +34,18 @@ public sealed class CreateCustomerCommandHandler : IRequestHandler<CreateCustome
 
     private async Task<CustomerDto> CreateAsync(CreateCustomerCommand request, CancellationToken cancellationToken)
     {
+        CustomerReferral? referral = null;
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode))
+        {
+            var referralRepository = _referralRepository
+                ?? throw new DomainException("Referral validation is unavailable.");
+            referral = await referralRepository.GetAvailableByCodeAsync(request.ReferralCode, cancellationToken);
+            if (referral is null)
+                throw new DomainException("Referral code is invalid, inactive, or has already been used.");
+            if (referral.ReferredMobileNumber != CustomerReferral.NormalizeMobile(request.MobileNumber))
+                throw new DomainException("Referral code does not match this mobile number.");
+        }
+
         var mobileExists = await _customerRepository.ExistsByMobileNumberAsync(request.MobileNumber, cancellationToken);
         if (mobileExists)
         {
@@ -65,6 +84,12 @@ public sealed class CreateCustomerCommandHandler : IRequestHandler<CreateCustome
 
         await _customerRepository.AddAsync(customer, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (referral is not null)
+        {
+            referral.MarkOnboarded(customer.CustomerId, DateTime.UtcNow);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         await _sender.Send(new ProvisionCustomerWalletsCommand(customer.CustomerId), cancellationToken);
 

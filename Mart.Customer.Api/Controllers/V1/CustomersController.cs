@@ -21,6 +21,7 @@ using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletTransactions;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWallets;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletBalances;
 using Mart.Customer.Application.Wallets.Commands.TopUpWallet;
+using Mart.Customer.Application.Wallets.Commands.ConvertRewardToStoreWallet;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -95,6 +96,25 @@ public sealed class CustomersController : ControllerBase
             cancellationToken);
 
         return Ok(configurations);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpPost("store-wallet-conversion")]
+    public async Task<IActionResult> ConvertRewardToStoreWallet(
+        ConvertRewardToStoreWalletRequest request,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new ConvertRewardToStoreWalletCommand(
+                currentUser.UserId,
+                request.StoreId,
+                request.RewardPoints,
+                request.RequestId,
+                currentUser.UserName ?? $"customer-{currentUser.UserId}"),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("by-mobile/{mobileNumber}")]
@@ -195,6 +215,30 @@ public sealed class CustomersController : ControllerBase
         return balances is null
             ? NotFound(new { message = "Customer not found." })
             : Ok(balances);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpGet("wallet-transactions")]
+    public async Task<IActionResult> GetCurrentWalletTransactions(
+        [FromQuery] GetCurrentCustomerWalletTransactionsRequest request,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var toDate = request.ToDate ?? DateTime.UtcNow;
+        var fromDate = request.FromDate ?? toDate.AddMonths(-1);
+        var transactions = await _sender.Send(
+            new GetCustomerWalletTransactionsQuery(
+                currentUser.UserId,
+                request.WalletTypeId,
+                request.PageNumber,
+                request.PageSize,
+                FromDate: fromDate,
+                ToDate: toDate) { StoreId = request.StoreId },
+            cancellationToken);
+
+        return transactions is null
+            ? NotFound(new { message = "Active customer wallet not found." })
+            : Ok(transactions);
     }
 
     [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]

@@ -3,6 +3,7 @@ namespace Mart.Customer.Domain.Wallets;
 public static class WalletTypeCodes
 {
     public const string MartWallet = "MART_WALLET";
+    public const string Reward = "REWARD";
 }
 
 public static class WalletOperationKinds

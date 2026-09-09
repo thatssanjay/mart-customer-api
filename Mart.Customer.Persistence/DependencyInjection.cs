@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerOrderInvoiceRepository, CustomerOrderInvoiceRepository>();
         services.AddScoped<IInternalUserRepository, InternalUserRepository>();
         services.AddScoped<ICustomerSubscriptionRepository, CustomerSubscriptionRepository>();
+        services.AddScoped<ICustomerReferralRepository, CustomerReferralRepository>();
         services.AddScoped<IWalletTypeRepository, WalletTypeRepository>();
         services.AddScoped<ICustomerWalletRepository, CustomerWalletRepository>();
         services.AddScoped<IWalletTransactionRepository, WalletTransactionRepository>();

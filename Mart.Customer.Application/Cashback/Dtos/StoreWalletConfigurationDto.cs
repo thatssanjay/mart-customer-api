@@ -6,6 +6,15 @@ public sealed record StoreWalletConfigurationDto(
     string? City,
     decimal ConversionRate);
 
+public sealed record ActiveStoreWalletConversionDto(
+    long StoreId,
+    string StoreName,
+    int WalletTypeId,
+    long CashbackSettingId,
+    int WalletSettingId,
+    decimal ConversionRate,
+    DateTime? ExpiryDate);
+
 public sealed record StoreWalletConfigurationsPageDto(
     int PageNumber,
     int PageSize,

@@ -20,7 +20,7 @@ namespace Mart.Customer.Tests.Wallets;
 public sealed class StoreWalletConfigurationsTests
 {
     [Fact]
-    public async Task Endpoint_ReturnsStablePagesAndNewestConfigurationPerStore()
+    public async Task Endpoint_ReturnsNewestConfigurationPerStoreOrderedByRateDescendingAcrossPages()
     {
         await using var factory = new GetCustomerWalletsApiFactory();
         await SeedAsync(factory, db =>
@@ -47,19 +47,20 @@ public sealed class StoreWalletConfigurationsTests
         Assert.Equal(2, firstPage.TotalRecords);
         Assert.True(firstPage.HasNextPage);
         var first = Assert.Single(firstPage.Items);
-        Assert.Equal(101, first.StoreId);
-        Assert.Equal("JJ Store Kharadi", first.StoreName);
+        Assert.Equal(102, first.StoreId);
+        Assert.Equal("JJ Store Baner", first.StoreName);
         Assert.Equal("Pune", first.City);
-        Assert.Equal(5m, first.ConversionRate);
+        Assert.Equal(7.5m, first.ConversionRate);
 
         Assert.NotNull(secondPage);
         Assert.Equal(2, secondPage.TotalRecords);
         Assert.False(secondPage.HasNextPage);
-        Assert.Equal(102, Assert.Single(secondPage.Items).StoreId);
+        Assert.Equal(101, Assert.Single(secondPage.Items).StoreId);
+        Assert.Equal(5m, Assert.Single(secondPage.Items).ConversionRate);
     }
 
     [Fact]
-    public async Task Endpoint_ReturnsOnlyActiveCurrentlyAvailableMartWalletConfigurations()
+    public async Task Endpoint_ReturnsOnlyCurrentActiveMartWalletConfigurations()
     {
         await using var factory = new GetCustomerWalletsApiFactory();
         var now = DateTime.UtcNow;
@@ -70,7 +71,7 @@ public sealed class StoreWalletConfigurationsTests
                 CreateWalletType(812, "MART_WALLET", "OTHER_WALLET"),
                 CreateWalletType(813, "Inactive Mart Wallet", "MART_WALLET", false));
 
-            for (var storeId = 201L; storeId <= 210; storeId++)
+            for (var storeId = 201L; storeId <= 211; storeId++)
                 db.MartStores.Add(Store(storeId, $"Store {storeId}", $"City {storeId}", storeId != 202));
 
             AddConfiguration(db, 2001, 201, 811, 4m);
@@ -83,6 +84,7 @@ public sealed class StoreWalletConfigurationsTests
             AddConfiguration(db, 2008, 208, 811, 4m, isNoExpiry: false, walletStart: now.AddDays(1));
             AddConfiguration(db, 2009, 209, 812, 4m);
             AddConfiguration(db, 2010, 210, 813, 4m);
+            AddConfiguration(db, 2011, 211, 811, null);
         });
 
         using var client = factory.CreateClient();
@@ -191,7 +193,7 @@ public sealed class StoreWalletConfigurationsTests
         long settingId,
         long storeId,
         int walletTypeId,
-        decimal conversionRate,
+        decimal? conversionRate,
         bool settingActive = true,
         DateTime? settingStart = null,
         DateTime? settingEnd = null,

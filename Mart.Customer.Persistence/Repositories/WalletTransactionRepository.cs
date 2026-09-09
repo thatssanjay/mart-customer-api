@@ -112,6 +112,24 @@ internal sealed class WalletTransactionRepository : IWalletTransactionRepository
             .SumAsync(transaction => transaction.Amount, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<WalletTransaction>> GetByReferenceAsync(
+        long customerId,
+        string referenceType,
+        long referenceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await (
+            from transaction in _dbContext.WalletTransactions.AsNoTracking()
+            join wallet in _dbContext.CustomerWallets.AsNoTracking()
+                on transaction.CustomerWalletId equals wallet.CustomerWalletId
+            where wallet.CustomerId == customerId &&
+                  transaction.ReferenceType == referenceType &&
+                  transaction.ReferenceId == referenceId
+            orderby transaction.WalletTransactionId
+            select transaction)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<WalletTransactionDetailDto?> GetByTransactionNumberAsync(
         string transactionNumber,
         CancellationToken cancellationToken = default)

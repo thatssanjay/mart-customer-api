@@ -111,7 +111,8 @@ public sealed class AppProvidersController : ControllerBase
                 true,
                 false,
                 null,
-                null),
+                null,
+                request.ReferralCode),
             cancellationToken);
 
         var response = new AppCustomerProfileDto(

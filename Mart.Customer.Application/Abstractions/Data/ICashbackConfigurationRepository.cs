@@ -15,4 +15,10 @@ public interface ICashbackConfigurationRepository
             int pageNumber,
             int pageSize,
             CancellationToken cancellationToken = default);
+
+    Task<ActiveStoreWalletConversionDto?> GetActiveStoreWalletConversionAsync(
+        long storeId,
+        string walletCode,
+        DateTime currentDate,
+        CancellationToken cancellationToken = default);
 }

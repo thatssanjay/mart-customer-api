@@ -1,12 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentValidation.TestHelper;
+using Mart.Customer.Api.Auth;
+using Mart.Customer.Api.Contracts.Wallets;
+using Mart.Customer.Api.Controllers.V1;
 using Mart.Customer.Application.Customers.Dtos;
 using Mart.Customer.Application.Wallets.Dtos;
 using Mart.Customer.Application.Wallets.Queries.GetCustomerWalletTransactions;
 using Mart.Customer.Domain.Wallets;
 using Mart.Customer.Persistence;
+using MediatR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +26,58 @@ public sealed class GetCustomerWalletTransactionsTests
     public GetCustomerWalletTransactionsTests(GetCustomerWalletsApiFactory factory)
     {
         _factory = factory;
+    }
+
+    [Fact]
+    public void MobileEndpoint_UsesCustomerTokenContextWithoutCustomerIdInput()
+    {
+        var method = typeof(CustomersController)
+            .GetMethod(nameof(CustomersController.GetCurrentWalletTransactions))!;
+        var route = Assert.Single(method
+            .GetCustomAttributes(typeof(HttpGetAttribute), false)
+            .Cast<HttpGetAttribute>());
+        var authorization = Assert.Single(method
+            .GetCustomAttributes(typeof(AuthorizeAttribute), false)
+            .Cast<AuthorizeAttribute>());
+
+        Assert.Equal("wallet-transactions", route.Template);
+        Assert.Equal(MartAuthorizationPolicies.MobileCustomer, authorization.Policy);
+        Assert.Contains(method.GetParameters(), parameter => parameter.ParameterType == typeof(IMartUserContext));
+        Assert.DoesNotContain(method.GetParameters(), parameter =>
+            string.Equals(parameter.Name, "customerId", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task MobileEndpoint_FiltersAuthenticatedStoreWalletAndDefaultsToLastMonth()
+    {
+        var customerWalletId = await SeedWalletAsync(
+            7501, 751, isWalletTypeActive: true, storeId: 501, walletCode: "MART_WALLET");
+        var now = DateTime.UtcNow;
+        await SeedTransactionsAsync(
+            CreateTransaction(75001, customerWalletId, "TX-75001", "CREDIT", 12m, 0m, 12m,
+                "REWARD_CONVERSION", 951, now.AddDays(-40), "Old conversion"),
+            CreateTransaction(75002, customerWalletId, "TX-75002", "REDEMPTION", 2m, 12m, 10m,
+                "ORDER", 952, now.AddDays(-2), "Order redemption"),
+            CreateTransaction(75003, customerWalletId, "TX-75003", "CREDIT", 5m, 10m, 15m,
+                "REWARD_CONVERSION", 953, now.AddDays(-1), "Latest conversion"));
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var controller = new CustomersController(scope.ServiceProvider.GetRequiredService<ISender>());
+        var response = Assert.IsType<OkObjectResult>(await controller.GetCurrentWalletTransactions(
+            new GetCurrentCustomerWalletTransactionsRequest
+            {
+                WalletTypeId = 751,
+                StoreId = 501,
+                PageNumber = 1,
+                PageSize = 1
+            },
+            new StubMartUserContext(7501),
+            CancellationToken.None));
+        var result = Assert.IsType<PagedResultDto<WalletTransactionDto>>(response.Value);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.TotalPages);
+        Assert.Equal(75003, Assert.Single(result.Items).WalletTransactionId);
     }
 
     [Fact]
@@ -144,15 +201,29 @@ public sealed class GetCustomerWalletTransactionsTests
         result.ShouldHaveValidationErrorFor(query => query.ReferenceId);
     }
 
+    [Fact]
+    public void Validator_WhenStoreIdIsInvalid_ReturnsFailure()
+    {
+        var validator = new GetCustomerWalletTransactionsQueryValidator();
+        var result = validator.TestValidate(new GetCustomerWalletTransactionsQuery(1, 1)
+        {
+            StoreId = 0
+        });
+
+        result.ShouldHaveValidationErrorFor(query => query.StoreId);
+    }
+
     private async Task<long> SeedWalletAsync(
         long customerId,
         int walletTypeId,
-        bool isWalletTypeActive)
+        bool isWalletTypeActive,
+        long? storeId = null,
+        string? walletCode = null)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        dbContext.WalletTypes.Add(CreateWalletType(walletTypeId, isWalletTypeActive));
-        var wallet = CustomerWallet.Create(customerId, walletTypeId, DateTime.UtcNow);
+        dbContext.WalletTypes.Add(CreateWalletType(walletTypeId, isWalletTypeActive, walletCode));
+        var wallet = CustomerWallet.Create(customerId, walletTypeId, DateTime.UtcNow, storeId);
         dbContext.CustomerWallets.Add(wallet);
         await dbContext.SaveChangesAsync(CancellationToken.None);
         return wallet.CustomerWalletId;
@@ -166,12 +237,12 @@ public sealed class GetCustomerWalletTransactionsTests
         await dbContext.SaveChangesAsync(CancellationToken.None);
     }
 
-    private static WalletType CreateWalletType(int id, bool isActive)
+    private static WalletType CreateWalletType(int id, bool isActive, string? code = null)
     {
         var walletType = (WalletType)Activator.CreateInstance(typeof(WalletType), nonPublic: true)!;
         SetProperty(walletType, nameof(WalletType.Id), id);
         SetProperty(walletType, nameof(WalletType.Name), $"Wallet {id}");
-        SetProperty(walletType, nameof(WalletType.Code), $"WALLET_{id}");
+        SetProperty(walletType, nameof(WalletType.Code), code ?? $"WALLET_{id}");
         SetProperty(walletType, nameof(WalletType.IsActive), isActive);
         SetProperty(walletType, nameof(WalletType.CreatedDate), DateTime.UtcNow);
         return walletType;
@@ -211,5 +282,15 @@ public sealed class GetCustomerWalletTransactionsTests
         where TTarget : class
     {
         typeof(TTarget).GetProperty(propertyName)!.SetValue(target, value);
+    }
+
+    private sealed class StubMartUserContext(long customerId) : IMartUserContext
+    {
+        public long UserId => customerId;
+        public long FranchiseId => throw new NotSupportedException();
+        public long StoreId => throw new NotSupportedException();
+        public string? UserName => null;
+        public string? Role => null;
+        public string? LoginType => "customer";
     }
 }
