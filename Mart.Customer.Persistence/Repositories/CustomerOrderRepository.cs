@@ -3,6 +3,7 @@ using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Domain.Orders;
 using Mart.Customer.Application.Orders.Dtos;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace Mart.Customer.Persistence.Repositories;
 
@@ -108,6 +109,48 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
         await _dbContext.CustomerOrders.AddAsync(order, cancellationToken);
     }
 
+    public async Task<string> GetNextInvoiceNumberAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.IsRelational() &&
+            _dbContext.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "Invoice numbers must be allocated inside the checkout transaction.");
+        }
+
+        var updatedRows = await _dbContext.InvoiceSerialCounters
+            .Where(counter =>
+                counter.CounterName == InvoiceSerialCounter.InvoiceCounterName &&
+                counter.CurrentSerial < InvoiceSerialCounter.MaximumSerial)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(
+                    counter => counter.CurrentSerial,
+                    counter => counter.CurrentSerial + 1),
+                cancellationToken);
+
+        if (updatedRows != 1)
+        {
+            var counterExists = await _dbContext.InvoiceSerialCounters
+                .AsNoTracking()
+                .AnyAsync(
+                    counter => counter.CounterName == InvoiceSerialCounter.InvoiceCounterName,
+                    cancellationToken);
+
+            throw new InvalidOperationException(counterExists
+                ? "The eight-digit invoice number sequence has been exhausted."
+                : "The invoice serial counter has not been initialized.");
+        }
+
+        var nextSerial = await _dbContext.InvoiceSerialCounters
+            .AsNoTracking()
+            .Where(counter => counter.CounterName == InvoiceSerialCounter.InvoiceCounterName)
+            .Select(counter => counter.CurrentSerial)
+            .SingleAsync(cancellationToken);
+
+        return nextSerial.ToString("D8", CultureInfo.InvariantCulture);
+    }
+
     private static string JoinAddress(params string?[] parts)
     {
         var address = string.Join(", ", parts.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -151,6 +194,63 @@ internal sealed class CustomerOrderRepository : ICustomerOrderRepository
             .ToListAsync(cancellationToken);
 
         return (orders, totalCount);
+    }
+
+    public async Task<IReadOnlyList<PendingPointsOrderDto>> GetPendingPointsAsync(
+        CancellationToken cancellationToken = default) =>
+        await _dbContext.CustomerOrders
+            .AsNoTracking()
+            .Where(order =>
+                !order.IsPointsAwarded &&
+                order.Payments.Any(payment => payment.PaymentMode == "Wallet"))
+            .OrderByDescending(order => order.OrderDate)
+            .ThenByDescending(order => order.CustomerOrderId)
+            .Select(order => new PendingPointsOrderDto(
+                order.CustomerOrderId,
+                order.InvoiceNumber,
+                order.OrderDate,
+                order.Items.Count,
+                order.FinalPayableAmount,
+                order.OrderStatus))
+            .ToListAsync(cancellationToken);
+
+    public Task<OrderPointsAwardStateDto?> GetPointsAwardStateAsync(
+        long customerOrderId,
+        CancellationToken cancellationToken = default) =>
+        _dbContext.CustomerOrders
+            .AsNoTracking()
+            .Where(order =>
+                order.CustomerOrderId == customerOrderId &&
+                order.Payments.Any(payment => payment.PaymentMode == "Wallet"))
+            .Select(order => new OrderPointsAwardStateDto(
+                order.CustomerOrderId,
+                order.FranchiseId,
+                order.MartStoreId,
+                order.IsPointsAwarded,
+                order.PointsAwardedDate,
+                order.PointsAwardedBy))
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<bool> TryMarkPointsAwardedAsync(
+        long customerOrderId,
+        long franchiseId,
+        long storeId,
+        CancellationToken cancellationToken = default)
+    {
+        var updatedRows = await _dbContext.CustomerOrders
+            .Where(order =>
+                order.CustomerOrderId == customerOrderId &&
+                order.FranchiseId == franchiseId &&
+                order.MartStoreId == storeId &&
+                order.Payments.Any(payment => payment.PaymentMode == "Wallet") &&
+                !order.IsPointsAwarded)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(order => order.IsPointsAwarded, true)
+                .SetProperty(order => order.PointsAwardedDate, order => DateTime.Now)
+                .SetProperty(order => order.PointsAwardedBy, "System"),
+                cancellationToken);
+
+        return updatedRows == 1;
     }
 
     public async Task<(IReadOnlyList<OrderSearchItemDto> Orders, int TotalCount)> SearchPagedAsync(

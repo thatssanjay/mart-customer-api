@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using Mart.Customer.Api.Auth;
 using Mart.Customer.Application.Auth.Dtos;
 using Mart.Customer.Application.Auth.Queries.GetMartUserAccessScope;
@@ -10,6 +12,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Mart.Customer.Shared.Auth;
 using Xunit;
 
 namespace Mart.Customer.Tests.Wallets;
@@ -35,17 +40,19 @@ public sealed class OrderWalletCreditEndpointTests
     }
 
     [Fact]
-    public async Task CustomerIdentityUsesAuthenticatedOwnershipContext()
+    public async Task CustomerTokenIsForbiddenAndDoesNotReachCreditEngine()
     {
-        await using var factory = new OrderCreditApiFactory("customer");
+        await using var factory = new OrderCreditApiFactory("customer", "CUSTOMER");
         using var client = factory.CreateClient();
         using var response = await client.PostAsync("/api/v1/wallet-engine/orders/10001/credit", null);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(new OrderWalletAccess(41, 0, 0, 41), factory.Engine.Access);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Null(factory.Engine.Access);
     }
 }
 
-internal sealed class OrderCreditApiFactory(string loginType = "user") : WebApplicationFactory<Program>
+internal sealed class OrderCreditApiFactory(
+    string loginType = "internalUser",
+    string role = "MA") : WebApplicationFactory<Program>
 {
     public RecordingOrderEngine Engine { get; } = new();
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -61,11 +68,48 @@ internal sealed class OrderCreditApiFactory(string loginType = "user") : WebAppl
             services.AddSingleton<IRequestHandler<GetMartUserAccessScopeQuery, MartUserAccessScopeDto>, OrderTestAccess>();
             services.AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = TestAuthenticationHandler.AuthenticationScheme;
-                options.DefaultChallengeScheme = TestAuthenticationHandler.AuthenticationScheme;
-                options.DefaultForbidScheme = TestAuthenticationHandler.AuthenticationScheme;
-            }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.AuthenticationScheme, _ => { });
+                options.DefaultAuthenticateScheme = OrderCreditAuthenticationHandler.AuthenticationScheme;
+                options.DefaultChallengeScheme = OrderCreditAuthenticationHandler.AuthenticationScheme;
+                options.DefaultForbidScheme = OrderCreditAuthenticationHandler.AuthenticationScheme;
+            }).AddScheme<OrderCreditAuthenticationOptions, OrderCreditAuthenticationHandler>(
+                OrderCreditAuthenticationHandler.AuthenticationScheme,
+                options =>
+                {
+                    options.LoginType = loginType;
+                    options.Role = role;
+                });
         });
+    }
+}
+
+internal sealed class OrderCreditAuthenticationOptions : AuthenticationSchemeOptions
+{
+    public string LoginType { get; set; } = "internalUser";
+    public string Role { get; set; } = "MA";
+}
+
+internal sealed class OrderCreditAuthenticationHandler : AuthenticationHandler<OrderCreditAuthenticationOptions>
+{
+    public const string AuthenticationScheme = "OrderCreditTest";
+
+    public OrderCreditAuthenticationHandler(
+        IOptionsMonitor<OrderCreditAuthenticationOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim(MartTokenClaims.UserId, "41"),
+            new Claim(MartTokenClaims.LoginType, Options.LoginType),
+            new Claim(ClaimTypes.Role, Options.Role)
+        ], AuthenticationScheme);
+        var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), AuthenticationScheme);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 }
 

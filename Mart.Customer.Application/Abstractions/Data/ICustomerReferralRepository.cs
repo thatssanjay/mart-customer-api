@@ -6,6 +6,10 @@ namespace Mart.Customer.Application.Abstractions.Data;
 public interface ICustomerReferralRepository
 {
     Task<ReferralBenefitDto?> GetActiveBenefitAsync(DateTime currentDate, CancellationToken cancellationToken = default);
+    Task<ReferralConfiguration?> GetActiveConfigurationAsync(
+        int referralConfigId,
+        DateTime currentDate,
+        CancellationToken cancellationToken = default);
     Task<bool> ExistsForMobileAsync(long referrerCustomerId, string mobileNumber, CancellationToken cancellationToken = default);
     Task<bool> ReferralCodeExistsAsync(string referralCode, CancellationToken cancellationToken = default);
     Task<CustomerReferral?> GetAvailableByCodeAsync(string referralCode, CancellationToken cancellationToken = default);

@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using Mart.Customer.Api.Auth;
 using Mart.Customer.Application.Carts.Queries.GetCustomerCarts;
 using Mart.Customer.Application.Carts.Commands.UpdateCartPaymentStatus;
+using Mart.Customer.Application.Carts.Commands.PayCartWithWallets;
 using Mart.Customer.Api.Contracts.Carts;
 using Mart.Customer.Api.Contracts.Customers;
 using Mart.Customer.Api.Contracts.Wallets;
@@ -112,6 +113,28 @@ public sealed class CustomersController : ControllerBase
                 request.RewardPoints,
                 request.RequestId,
                 currentUser.UserName ?? $"customer-{currentUser.UserId}"),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize(Policy = MartAuthorizationPolicies.MobileCustomer)]
+    [HttpPost("~/api/v{version:apiVersion}/customer/carts/{cartId:long}/wallet-payment")]
+    public async Task<IActionResult> PayCartWithWallets(
+        long cartId,
+        PayCartWithWalletsRequest request,
+        [FromServices] IMartUserContext currentUser,
+        CancellationToken cancellationToken)
+    {
+        var result = await _sender.Send(
+            new PayCartWithWalletsCommand(
+                cartId,
+                request.CartNumber,
+                request.PaymentToken,
+                currentUser.UserId,
+                currentUser.UserName ?? $"customer-{currentUser.UserId}",
+                request.Deductions.Select(item =>
+                    new CartWalletDeduction(item.WalletCode, item.Amount)).ToList()),
             cancellationToken);
 
         return Ok(result);

@@ -41,6 +41,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<CustomerOrder> CustomerOrders => Set<CustomerOrder>();
 
+    public DbSet<InvoiceSerialCounter> InvoiceSerialCounters => Set<InvoiceSerialCounter>();
+
     public DbSet<CustomerOrderItem> CustomerOrderItems => Set<CustomerOrderItem>();
 
     public DbSet<CustomerOrderPayment> CustomerOrderPayments => Set<CustomerOrderPayment>();

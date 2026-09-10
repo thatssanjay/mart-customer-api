@@ -61,8 +61,14 @@ public sealed class TopUpWalletCommandHandler(
                 type.Code, MainWalletCode, StringComparison.OrdinalIgnoreCase))
             ?? throw new DomainException("The WALLET type is not available.");
         var wallet = await wallets.GetByCustomerAndTypeAsync(
-            request.CustomerId, walletType.Id, cancellationToken)
-            ?? throw new DomainException("The customer's WALLET was not found.");
+            request.CustomerId, walletType.Id, cancellationToken);
+        if (wallet is null)
+        {
+            wallet = CustomerWallet.Create(
+                request.CustomerId, walletType.Id, DateTime.UtcNow);
+            await wallets.AddRangeAsync([wallet], cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
         if (!wallet.IsActive)
             throw new DomainException("The customer's WALLET is inactive.");
 

@@ -1,9 +1,9 @@
 # Order wallet credit API
 
 `POST /api/v1/wallet-engine/orders/{orderId}/credit` has no request body or financial query parameters.
-Customer tokens can process only orders owned by their authenticated customer ID. Staff use the existing
-authenticated internal-user store assignment; the service checks the order's franchise/store against it.
-Ownership/scope is checked before both posting and idempotent replay. Store and financial data always come from the order.
+The endpoint requires the existing `internalUser` token type; customer tokens are forbidden. Staff use the
+authenticated internal-user store assignment, and the service checks the order's franchise/store against it.
+Scope is checked before both posting and idempotent replay. Store and financial data always come from the order.
 Success is the existing plain JSON response convention; failures use existing ProblemDetails middleware.
 
 ## Rules and findings
@@ -102,7 +102,9 @@ including the concurrent OrderId request and direct order-index uniqueness tests
 SQL Server tests use uniquely named disposable LocalDB databases
 created/deleted by the existing test fixture, never the application's configured database or EF migrations.
 
-## Customer-token 403 correction
+## Historical customer-token behavior (superseded)
+
+The endpoint is now internal-user-only. The behavior below documents an earlier implementation and is no longer active.
 
 The request logged at 2026-09-04 04:57:34 +05:30 returned 403 because the original controller
 rejected all customer tokens. Customer calls now carry the authenticated customer ID into the service,

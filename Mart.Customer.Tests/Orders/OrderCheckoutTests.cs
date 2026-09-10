@@ -11,6 +11,7 @@ using Mart.Customer.Application.Inventory.Services;
 using Mart.Customer.Domain.Common;
 using Mart.Customer.Domain.Cashback;
 using Mart.Customer.Domain.Inventory;
+using Mart.Customer.Domain.Orders;
 using Mart.Customer.Domain.Subscriptions;
 using Mart.Customer.Domain.Wallets;
 using Mart.Customer.Persistence;
@@ -71,7 +72,14 @@ public sealed class OrderCheckoutServiceTests
         Assert.Equal("Archived", result.InvoiceStatus);
         Assert.Single(result.Items);
         Assert.Equal("Cash", Assert.Single(result.Payments).PaymentMode);
-        Assert.StartsWith("INV-", result.InvoiceNumber);
+        Assert.Equal("00000001", result.InvoiceNumber);
+        Assert.Equal(
+            1,
+            await fixture.Db.InvoiceSerialCounters
+                .AsNoTracking()
+                .Where(counter => counter.CounterName == InvoiceSerialCounter.InvoiceCounterName)
+                .Select(counter => counter.CurrentSerial)
+                .SingleAsync());
         Assert.False(result.IsIdempotentRetry);
         fixture.ClearTracking();
         Assert.Equal("Paid", await fixture.Db.CustomerCarts.AsNoTracking().Select(item => item.CartStatus).SingleAsync());
@@ -101,6 +109,29 @@ public sealed class OrderCheckoutServiceTests
         var payment = Assert.Single(result.Payments);
         Assert.Equal("UPI", payment.PaymentMode);
         Assert.Equal("upi-001", payment.TransactionReference);
+    }
+
+    [Fact]
+    public async Task Checkout_ForTwoNewInvoices_UsesSequentialEightDigitNumbers()
+    {
+        await using var fixture = await CheckoutFixture.CreateAsync();
+        var firstCart = await fixture.SeedCartAsync("CART-INVOICE-SEQUENCE-1");
+
+        var first = await fixture.CheckoutAsync(Command(firstCart.CartNumber, Cash(224.20m)));
+
+        var secondCart = CheckoutPreviewServiceTests.CreateCart("CART-INVOICE-SEQUENCE-2", withItem: true);
+        fixture.Db.CustomerCarts.Add(secondCart);
+        await fixture.Db.SaveChangesAsync();
+        fixture.ClearTracking();
+        var second = await fixture.CheckoutAsync(Command(secondCart.CartNumber, Cash(224.20m)));
+
+        Assert.Equal("00000001", first!.InvoiceNumber);
+        Assert.Equal("00000002", second!.InvoiceNumber);
+        Assert.Equal(2, await fixture.Db.CustomerOrders.AsNoTracking().CountAsync());
+        Assert.Equal(2, await fixture.Db.InvoiceSerialCounters
+            .AsNoTracking()
+            .Select(counter => counter.CurrentSerial)
+            .SingleAsync());
     }
 
     [Fact]
@@ -258,6 +289,10 @@ public sealed class OrderCheckoutServiceTests
         Assert.Empty(await fixture.Db.StockMovements.AsNoTracking().ToListAsync());
         Assert.Equal(1m, await fixture.Db.StoreStocks.AsNoTracking().Select(item => item.CurrentQuantity).SingleAsync());
         Assert.Equal("Active", await fixture.Db.CustomerCarts.AsNoTracking().Select(item => item.CartStatus).SingleAsync());
+        Assert.Equal(0, await fixture.Db.InvoiceSerialCounters
+            .AsNoTracking()
+            .Select(counter => counter.CurrentSerial)
+            .SingleAsync());
     }
 
     [Fact]
@@ -306,9 +341,14 @@ public sealed class OrderCheckoutServiceTests
         Assert.NotNull(first);
         Assert.NotNull(retry);
         Assert.Equal(first.CustomerOrderId, retry.CustomerOrderId);
+        Assert.Equal(first.InvoiceNumber, retry.InvoiceNumber);
         Assert.True(retry.IsIdempotentRetry);
         fixture.ClearTracking();
         Assert.Equal(1, await fixture.Db.CustomerOrders.AsNoTracking().CountAsync());
+        Assert.Equal(1, await fixture.Db.InvoiceSerialCounters
+            .AsNoTracking()
+            .Select(counter => counter.CurrentSerial)
+            .SingleAsync());
         Assert.Equal(98m, await fixture.Db.StoreStocks.AsNoTracking().Select(item => item.CurrentQuantity).SingleAsync());
         Assert.Equal(1, await fixture.Db.StockMovements.AsNoTracking()
             .Where(item => item.MovementType == "SALE")
@@ -465,9 +505,14 @@ public sealed class OrderCheckoutServiceTests
 
             Assert.All(results, Assert.NotNull);
             Assert.Single(results.Select(result => result!.CustomerOrderId).Distinct());
+            Assert.Single(results.Select(result => result!.InvoiceNumber).Distinct());
             Assert.Single(results, result => result!.IsIdempotentRetry);
             setup.ClearTracking();
             Assert.Equal(1, await setup.Db.CustomerOrders.AsNoTracking().CountAsync());
+            Assert.Equal(1, await setup.Db.InvoiceSerialCounters
+                .AsNoTracking()
+                .Select(counter => counter.CurrentSerial)
+                .SingleAsync());
             Assert.Equal(98m, await setup.Db.StoreStocks.AsNoTracking().Select(item => item.CurrentQuantity).SingleAsync());
             Assert.Equal(1, await setup.Db.StockMovements.AsNoTracking()
                 .Where(item => item.MovementType == "SALE")

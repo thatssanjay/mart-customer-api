@@ -10,6 +10,8 @@ public sealed class ReferralConfigurationConfiguration : IEntityTypeConfiguratio
     {
         builder.ToTable("ReferralConfig", "Referral");
         builder.HasKey(configuration => configuration.Id);
+        builder.Property(configuration => configuration.MinimumPurchaseAmount).HasPrecision(18, 2);
         builder.Property(configuration => configuration.ReferrerRewardPoint).HasPrecision(18, 2);
+        builder.Property(configuration => configuration.ReferredCustomerRewardPoint).HasPrecision(18, 2);
     }
 }

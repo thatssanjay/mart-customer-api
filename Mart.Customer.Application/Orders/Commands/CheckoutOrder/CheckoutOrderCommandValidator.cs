@@ -42,5 +42,5 @@ public sealed class CheckoutOrderCommandValidator : AbstractValidator<CheckoutOr
 
     private static bool IsAppPayment(CheckoutOrderCommand command) =>
         command.Payments?.Any(payment =>
-            string.Equals(payment.PaymentMode?.Trim(), "APP", StringComparison.OrdinalIgnoreCase)) == true;
+            string.Equals(payment.PaymentMode?.Trim(), "Wallet", StringComparison.OrdinalIgnoreCase)) == true;
 }

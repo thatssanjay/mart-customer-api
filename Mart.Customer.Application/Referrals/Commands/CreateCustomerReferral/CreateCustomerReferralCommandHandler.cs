@@ -24,6 +24,12 @@ public sealed class CreateCustomerReferralCommandHandler(
     {
         var referrer = await customers.GetByIdAsync(request.ReferrerCustomerId, cancellationToken)
             ?? throw new DomainException("Customer not found.");
+        var configuration = await referrals.GetActiveConfigurationAsync(
+            request.ReferralConfigId,
+            DateTime.UtcNow.Date,
+            cancellationToken);
+        if (configuration is null)
+            throw new DomainException("The referral offer is inactive or has expired.");
         var mobile = CustomerReferral.NormalizeMobile(request.ReferredMobileNumber);
         if (mobile == CustomerReferral.NormalizeMobile(referrer.MobileNumber))
             throw new DomainException("You cannot refer your own mobile number.");
@@ -31,7 +37,15 @@ public sealed class CreateCustomerReferralCommandHandler(
             throw new DomainException("You have already referred this mobile number.");
 
         var code = await GenerateUniqueCodeAsync(cancellationToken);
-        var referral = CustomerReferral.Create(request.ReferrerCustomerId, mobile, code, DateTime.UtcNow);
+        var referral = CustomerReferral.Create(
+            request.ReferrerCustomerId,
+            request.ReferralConfigId,
+            configuration.MinimumPurchaseAmount,
+            configuration.ReferrerRewardPoint,
+            configuration.ReferredCustomerRewardPoint,
+            mobile,
+            code,
+            DateTime.UtcNow);
         await referrals.AddAsync(referral, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new CreatedCustomerReferralDto(

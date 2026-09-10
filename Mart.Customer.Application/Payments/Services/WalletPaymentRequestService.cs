@@ -167,6 +167,47 @@ public sealed class WalletPaymentRequestService : IWalletPaymentRequestService
         return Task.FromResult(attempt.Reference);
     }
 
+    public Task<string> ValidatePendingForPaymentAsync(
+        CustomerCart cart,
+        string? paymentToken,
+        decimal finalPayableAmount,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(paymentToken))
+        {
+            throw new DomainException("A wallet payment token is required for this cart.");
+        }
+
+        if (ParseCartId(paymentToken) != cart.CustomerCartId)
+        {
+            throw new DomainException("The wallet payment does not match this cart.");
+        }
+
+        var attempt = ValidateToken(cart, paymentToken);
+        if (attempt.ExpiresOn <= DateTime.UtcNow)
+        {
+            throw new DomainException("The wallet payment request has expired.");
+        }
+
+        if (string.Equals(attempt.Status, "PAID", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainException("Payment has already been completed for this cart.");
+        }
+
+        if (!string.Equals(attempt.Status, "PENDING", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainException("The wallet payment request is not active.");
+        }
+
+        if (attempt.Amount != finalPayableAmount)
+        {
+            throw new DomainException("The wallet payment amount no longer matches the cart payable amount.");
+        }
+
+        return Task.FromResult(attempt.Reference);
+    }
+
     private async Task<WalletPaymentAttempt> ExpireIfNeededAsync(
         CustomerCart cart,
         WalletPaymentAttempt attempt,

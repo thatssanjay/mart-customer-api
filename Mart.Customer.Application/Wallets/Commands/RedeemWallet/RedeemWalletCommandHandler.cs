@@ -113,10 +113,20 @@ public sealed class RedeemWalletCommandHandler
             bucket.ExpiryDate,
             bucket.CreatedOn,
             null));
-        var allocations = WalletRedemptionBucketCalculator.Calculate(
-            bucketDtos,
-            request.Amount,
-            transactionDate);
+        // Store-wallet balances can include credits created before balance buckets
+        // were introduced. CurrentBalance remains authoritative for those wallets;
+        // consume every available bucket first and treat only the remainder as
+        // legacy/unbucketed balance.
+        var bucketBalance = bucketDtos.Sum(bucket => bucket.AvailableAmount);
+        var bucketRedemptionAmount = request.StoreId is > 0
+            ? Math.Min(request.Amount, bucketBalance)
+            : request.Amount;
+        var allocations = bucketRedemptionAmount > 0
+            ? WalletRedemptionBucketCalculator.Calculate(
+                bucketDtos,
+                bucketRedemptionAmount,
+                transactionDate)
+            : [];
 
         var allocationsByBucketId = allocations.ToDictionary(
             allocation => allocation.WalletBalanceBucketId,

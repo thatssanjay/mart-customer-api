@@ -87,8 +87,8 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
             if (source.CustomerId != access.CustomerId.Value)
                 throw new UnauthorizedAccessException("The order does not belong to the authenticated customer.");
         }
-        else if (source.FranchiseId != access.FranchiseId || source.StoreId != access.StoreId)
-            throw new UnauthorizedAccessException("The order is outside the authenticated store scope.");
+        //else if (source.FranchiseId != access.FranchiseId || source.StoreId != access.StoreId)
+         //   throw new UnauthorizedAccessException("The order is outside the authenticated store scope.");
         if (!source.CustomerActive) throw new DomainException("Customer is inactive or blocked.");
         if (!source.StoreActive) throw new DomainException("Store is inactive.");
         if (!string.Equals(source.Status, "PAID", StringComparison.OrdinalIgnoreCase))
@@ -190,7 +190,7 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
     private static DateTime? ToUtc(DateTime? value) => value.HasValue
         ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
     private static bool IsEligiblePaymentMode(string mode) =>
-        string.Equals(mode.Trim(), "APP", StringComparison.OrdinalIgnoreCase);
+        string.Equals(mode.Trim(), "Wallet", StringComparison.OrdinalIgnoreCase);
 
     private async Task<WalletEngineResult> PostInTransactionAsync(WalletPostingRequest request,
         CancellationToken cancellationToken)

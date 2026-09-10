@@ -43,7 +43,10 @@ public sealed class ReferralsController(ISender sender, IMartUserContext current
         CancellationToken cancellationToken)
     {
         var referral = await sender.Send(
-            new CreateCustomerReferralCommand(currentUser.UserId, request.MobileNumber ?? string.Empty),
+            new CreateCustomerReferralCommand(
+                currentUser.UserId,
+                request.MobileNumber ?? string.Empty,
+                request.ReferralConfigId),
             cancellationToken);
         return Created(string.Empty, referral);
     }

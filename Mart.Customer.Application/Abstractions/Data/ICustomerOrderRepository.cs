@@ -15,6 +15,19 @@ public interface ICustomerOrderRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<PendingPointsOrderDto>> GetPendingPointsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<OrderPointsAwardStateDto?> GetPointsAwardStateAsync(
+        long customerOrderId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> TryMarkPointsAwardedAsync(
+        long customerOrderId,
+        long franchiseId,
+        long storeId,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<OrderSearchItemDto> Orders, int TotalCount)> SearchPagedAsync(
         OrderSearchCriteria criteria,
         CancellationToken cancellationToken = default);
@@ -22,6 +35,9 @@ public interface ICustomerOrderRepository
     Task<CustomerOrder?> GetByCartIdAsync(
         long customerCartId,
         bool tracking,
+        CancellationToken cancellationToken = default);
+
+    Task<string> GetNextInvoiceNumberAsync(
         CancellationToken cancellationToken = default);
 
     Task<int?> GetRedemptionWalletTypeIdAsync(

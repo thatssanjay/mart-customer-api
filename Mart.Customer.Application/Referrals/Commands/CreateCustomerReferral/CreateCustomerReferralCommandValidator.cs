@@ -7,6 +7,9 @@ public sealed class CreateCustomerReferralCommandValidator : AbstractValidator<C
     public CreateCustomerReferralCommandValidator()
     {
         RuleFor(command => command.ReferrerCustomerId).GreaterThan(0);
+        RuleFor(command => command.ReferralConfigId)
+            .GreaterThan(0)
+            .WithMessage("Referral configuration is required.");
         RuleFor(command => command.ReferredMobileNumber)
             .NotEmpty()
             .Matches("^[0-9]{10}$")

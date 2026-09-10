@@ -1,5 +1,4 @@
 using Mart.Customer.Application.Abstractions.Data;
-using Mart.Customer.Application.Common.Utilities;
 using Mart.Customer.Application.Inventory.Services;
 using Mart.Customer.Application.Orders.Commands.CheckoutOrder;
 using Mart.Customer.Application.Orders.Dtos;
@@ -162,9 +161,10 @@ public sealed class OrderCheckoutService : IOrderCheckoutService
         }
 
         var orderDate = DateTime.UtcNow;
+        var invoiceNumber = await _orderRepository.GetNextInvoiceNumberAsync(cancellationToken);
         var order = CustomerOrder.Create(
             cart.CustomerCartId,
-            ReferenceCodeGenerator.GenerateWithPrefix("INV", 9),
+            invoiceNumber,
             cart.CustomerId,
             cart.FranchiseId,
             cart.MartStoreId,

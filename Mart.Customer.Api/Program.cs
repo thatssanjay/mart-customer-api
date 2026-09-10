@@ -143,6 +143,24 @@ builder.Services.AddAuthorization(options =>
             .RequireAuthenticatedUser()
             .RequireClaim(MartTokenClaims.LoginType, "customer"));
 
+    options.AddPolicy(MartAuthorizationPolicies.InternalUser, policy =>
+        policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(MartTokenClaims.LoginType, "internalUser"));
+
+    options.AddPolicy(MartAuthorizationPolicies.MartAdmin, policy =>
+        policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(MartTokenClaims.LoginType, "internalUser")
+            .RequireRole("MA"));
+
+    options.AddPolicy(MartAuthorizationPolicies.PendingPointsMartAdmin, policy =>
+        policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(
+                MartTokenClaims.LegacyUserRole,
+                MartAuthorizationPolicies.InternalUser));
+
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();

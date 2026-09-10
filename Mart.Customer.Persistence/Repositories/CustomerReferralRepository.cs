@@ -14,17 +14,31 @@ internal sealed class CustomerReferralRepository(ApplicationDbContext dbContext)
         return (from configuration in dbContext.ReferralConfigurations.AsNoTracking()
                 join wallet in dbContext.WalletTypes.AsNoTracking()
                     on configuration.RewardWalletTypeId equals wallet.Id
-                where configuration.IsActive && wallet.IsActive &&
+                where configuration.IsActive &&
                     configuration.StartDate <= currentDate &&
                     (!configuration.EndDate.HasValue || configuration.EndDate >= currentDate)
                 orderby configuration.StartDate descending, configuration.Id descending
                 select new ReferralBenefitDto(
+                    configuration.Id,
+                    configuration.MinimumPurchaseAmount,
                     configuration.ReferrerRewardPoint,
+                    configuration.ReferredCustomerRewardPoint,
                     wallet.Id,
                     wallet.Name,
                     wallet.Code))
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public Task<ReferralConfiguration?> GetActiveConfigurationAsync(
+        int referralConfigId,
+        DateTime currentDate,
+        CancellationToken cancellationToken = default) =>
+        dbContext.ReferralConfigurations.AsNoTracking().SingleOrDefaultAsync(
+            configuration => configuration.Id == referralConfigId &&
+                configuration.IsActive &&
+                configuration.StartDate <= currentDate &&
+                (!configuration.EndDate.HasValue || configuration.EndDate >= currentDate),
+            cancellationToken);
 
     public Task<bool> ExistsForMobileAsync(
         long referrerCustomerId,
@@ -52,7 +66,6 @@ internal sealed class CustomerReferralRepository(ApplicationDbContext dbContext)
         var code = referralCode.Trim().ToUpperInvariant();
         return dbContext.CustomerReferrals.SingleOrDefaultAsync(
             referral => referral.ReferralCode == code &&
-                referral.IsActive &&
                 referral.Status == CustomerReferral.WaitingStatus &&
                 referral.ReferredCustomerId == null,
             cancellationToken);

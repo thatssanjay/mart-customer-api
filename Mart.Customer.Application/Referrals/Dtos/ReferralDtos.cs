@@ -1,7 +1,10 @@
 namespace Mart.Customer.Application.Referrals.Dtos;
 
 public sealed record ReferralBenefitDto(
-    decimal RewardPoints,
+    int ReferralConfigId,
+    decimal MinimumPurchaseAmount,
+    decimal ReferrerRewardPoint,
+    decimal ReferredCustomerRewardPoint,
     int WalletTypeId,
     string WalletName,
     string WalletCode);

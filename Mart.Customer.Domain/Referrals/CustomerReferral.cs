@@ -4,13 +4,17 @@ namespace Mart.Customer.Domain.Referrals;
 
 public sealed class CustomerReferral
 {
-    public const string WaitingStatus = "WAITING";
+    public const string WaitingStatus = "PENDING";
     public const string ActiveStatus = "ACTIVE";
 
     private CustomerReferral() { }
 
     public long CustomerReferralId { get; private set; }
     public long ReferrerCustomerId { get; private set; }
+    public int ReferralConfigId { get; private set; }
+    public decimal MinimumPurchaseAmount { get; private set; }
+    public decimal ReferrerRewardPoint { get; private set; }
+    public decimal ReferredCustomerRewardPoint { get; private set; }
     public string ReferredMobileNumber { get; private set; } = string.Empty;
     public string ReferralCode { get; private set; } = string.Empty;
     public string Status { get; private set; } = WaitingStatus;
@@ -21,6 +25,10 @@ public sealed class CustomerReferral
 
     public static CustomerReferral Create(
         long referrerCustomerId,
+        int referralConfigId,
+        decimal minimumPurchaseAmount,
+        decimal referrerRewardPoint,
+        decimal referredCustomerRewardPoint,
         string referredMobileNumber,
         string referralCode,
         DateTime createdOn)
@@ -28,6 +36,8 @@ public sealed class CustomerReferral
         var mobile = NormalizeMobile(referredMobileNumber);
         var code = referralCode.Trim().ToUpperInvariant();
         if (referrerCustomerId <= 0) throw new DomainException("Referrer customer is invalid.");
+        if (referralConfigId <= 0) throw new DomainException("Referral configuration is invalid.");
+        if (minimumPurchaseAmount < 0) throw new DomainException("Minimum purchase amount is invalid.");
         if (mobile.Length != 10 || !mobile.All(char.IsDigit))
             throw new DomainException("Enter a valid 10 digit mobile number.");
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Referral code is required.");
@@ -35,6 +45,10 @@ public sealed class CustomerReferral
         return new CustomerReferral
         {
             ReferrerCustomerId = referrerCustomerId,
+            ReferralConfigId = referralConfigId,
+            MinimumPurchaseAmount = minimumPurchaseAmount,
+            ReferrerRewardPoint = referrerRewardPoint,
+            ReferredCustomerRewardPoint = referredCustomerRewardPoint,
             ReferredMobileNumber = mobile,
             ReferralCode = code,
             Status = WaitingStatus,

@@ -11,14 +11,28 @@ public sealed class CustomerReferralConfiguration : IEntityTypeConfiguration<Cus
     {
         builder.ToTable("CustomerReferral", "Referral");
         builder.HasKey(referral => referral.CustomerReferralId);
-        builder.Property(referral => referral.CustomerReferralId).ValueGeneratedOnAdd();
-        builder.Property(referral => referral.ReferredMobileNumber).HasMaxLength(30).IsRequired();
-        builder.Property(referral => referral.ReferralCode).HasMaxLength(32).IsUnicode(false).IsRequired();
+        builder.Property(referral => referral.CustomerReferralId)
+            .HasColumnName("Id")
+            .ValueGeneratedOnAdd();
+        builder.Property(referral => referral.ReferredMobileNumber)
+            .HasColumnName("ReferredCustomerMobile")
+            .HasMaxLength(20)
+            .IsUnicode(false)
+            .IsRequired();
+        builder.Property(referral => referral.ReferralCode).HasMaxLength(20).IsUnicode(false).IsRequired();
         builder.Property(referral => referral.Status).HasMaxLength(20).IsUnicode(false).IsRequired();
+        builder.Property(referral => referral.ReferralConfigId).IsRequired();
+        builder.Property(referral => referral.MinimumPurchaseAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(referral => referral.ReferrerRewardPoint).HasPrecision(18, 2).IsRequired();
+        builder.Property(referral => referral.ReferredCustomerRewardPoint).HasPrecision(18, 2).IsRequired();
+        builder.Property(referral => referral.CreatedOn).HasColumnName("CreatedDate");
+        builder.Ignore(referral => referral.IsActive);
+        builder.Ignore(referral => referral.OnboardedOn);
         builder.HasIndex(referral => referral.ReferralCode).IsUnique();
-        builder.HasIndex(referral => new { referral.ReferrerCustomerId, referral.ReferredMobileNumber })
-            .IsUnique()
-            .HasFilter("[IsActive] = 1");
+        builder.HasOne<ReferralConfiguration>()
+            .WithMany()
+            .HasForeignKey(referral => referral.ReferralConfigId)
+            .OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<CustomerEntity>()
             .WithMany()
             .HasForeignKey(referral => referral.ReferrerCustomerId)

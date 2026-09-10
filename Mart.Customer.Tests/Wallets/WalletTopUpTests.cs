@@ -59,6 +59,30 @@ public sealed class WalletTopUpTests
     }
 
     [Fact]
+    public async Task Handle_WhenMainWalletDoesNotExist_CreatesItAtZeroAndCreditsTopUp()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await SeedWalletTypeAsync(db, 54, "WALLET");
+        var handler = scope.ServiceProvider.GetRequiredService<TopUpWalletCommandHandler>();
+
+        var result = await handler.Handle(
+            Command(5004, 500m, "UPI", null, "UPI-004", "PAY-004"), default);
+
+        Assert.Equal(0m, result.PreviousBalance);
+        Assert.Equal(500m, result.NewBalance);
+        var wallet = await db.CustomerWallets.SingleAsync();
+        Assert.Equal(5004, wallet.CustomerId);
+        Assert.Equal(54, wallet.WalletTypeId);
+        Assert.Null(wallet.StoreId);
+        Assert.Equal(500m, wallet.CurrentBalance);
+        Assert.Equal(500m, wallet.TotalCredit);
+        Assert.Single(await db.WalletTopUpPayments.ToListAsync());
+        Assert.Single(await db.WalletTransactions.ToListAsync());
+        Assert.Single(await db.WalletBalanceBuckets.ToListAsync());
+    }
+
+    [Fact]
     public async Task Handle_RepeatedPaymentReferenceReturnsOriginalWithoutCreditingAgain()
     {
         await using var scope = CreateScope();
@@ -148,18 +172,32 @@ public sealed class WalletTopUpTests
         string walletCode,
         decimal balance)
     {
+        await SeedWalletTypeAsync(db, walletTypeId, walletCode, saveChanges: false);
+        var wallet = CustomerWallet.Create(customerId, walletTypeId, DateTime.UtcNow);
+        Set(wallet, nameof(CustomerWallet.CurrentBalance), balance);
+        Set(wallet, nameof(CustomerWallet.TotalCredit), balance);
+        db.CustomerWallets.Add(wallet);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+    }
+
+    private static async Task SeedWalletTypeAsync(
+        ApplicationDbContext db,
+        int walletTypeId,
+        string walletCode,
+        bool saveChanges = true)
+    {
         var type = (WalletType)Activator.CreateInstance(typeof(WalletType), true)!;
         Set(type, nameof(WalletType.Id), walletTypeId);
         Set(type, nameof(WalletType.Name), walletCode);
         Set(type, nameof(WalletType.Code), walletCode);
         Set(type, nameof(WalletType.IsActive), true);
-        var wallet = CustomerWallet.Create(customerId, walletTypeId, DateTime.UtcNow);
-        Set(wallet, nameof(CustomerWallet.CurrentBalance), balance);
-        Set(wallet, nameof(CustomerWallet.TotalCredit), balance);
         db.WalletTypes.Add(type);
-        db.CustomerWallets.Add(wallet);
-        await db.SaveChangesAsync();
-        db.ChangeTracker.Clear();
+        if (saveChanges)
+        {
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+        }
     }
 
     private static void Set<T>(T target, string propertyName, object value) where T : class =>

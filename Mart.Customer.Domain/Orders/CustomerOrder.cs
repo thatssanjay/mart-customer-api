@@ -43,6 +43,9 @@ public sealed class CustomerOrder
     public string InvoiceStatus { get; private set; } = string.Empty;
     public string? InvoiceArchivePath { get; private set; }
     public string InvoiceTemplateVersion { get; private set; } = string.Empty;
+    public bool IsPointsAwarded { get; private set; }
+    public DateTime? PointsAwardedDate { get; private set; }
+    public string? PointsAwardedBy { get; private set; }
     public long CreatedBy { get; private set; }
     public DateTime CreatedOn { get; private set; }
     public IReadOnlyCollection<CustomerOrderItem> Items => _items;
@@ -136,6 +139,18 @@ public sealed class CustomerOrder
     public void SetCashbackEarned(decimal amount) => CashbackEarned = amount;
 
     public void SetRewardEarned(decimal amount) => RewardEarned = amount;
+
+    public void MarkPointsAwarded(DateTime awardedAt, string awardedBy)
+    {
+        if (IsPointsAwarded)
+        {
+            throw new InvalidOperationException("Points have already been awarded for this order.");
+        }
+
+        IsPointsAwarded = true;
+        PointsAwardedDate = awardedAt;
+        PointsAwardedBy = awardedBy;
+    }
 
     public void MarkInvoiceArchived(string archivePath)
     {

@@ -29,4 +29,10 @@ public interface IWalletPaymentRequestService
         string? paymentToken,
         decimal finalPayableAmount,
         CancellationToken cancellationToken = default);
+
+    Task<string> ValidatePendingForPaymentAsync(
+        CustomerCart cart,
+        string? paymentToken,
+        decimal finalPayableAmount,
+        CancellationToken cancellationToken = default);
 }
