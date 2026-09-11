@@ -1,7 +1,9 @@
 using Mart.Customer.Application.Abstractions.Data;
 using Mart.Customer.Persistence.Repositories;
+using Mart.Customer.Application.Promotions;
 using Mart.Customer.Persistence.Services;
 using Mart.Customer.Application.Inventory.Services;
+using Mart.Customer.Application.Referrals.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerCartRepository, CustomerCartRepository>();
         services.AddScoped<ICustomerOrderRepository, CustomerOrderRepository>();
         services.AddScoped<ICustomerOrderInvoiceRepository, CustomerOrderInvoiceRepository>();
+        services.AddScoped<IStorePromotionService, StorePromotionService>();
         services.AddScoped<IInternalUserRepository, InternalUserRepository>();
         services.AddScoped<ICustomerSubscriptionRepository, CustomerSubscriptionRepository>();
         services.AddScoped<ICustomerReferralRepository, CustomerReferralRepository>();
@@ -38,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IWalletPostingGuard, WalletPostingGuard>();
         services.AddScoped<IOrderWalletSourceRepository, OrderWalletSourceRepository>();
         services.AddScoped<IInventoryStockService, InventoryStockService>();
+        services.AddScoped<IReferralRewardService, ReferralRewardService>();
 
         return services;
     }

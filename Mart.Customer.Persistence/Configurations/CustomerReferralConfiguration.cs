@@ -26,6 +26,9 @@ public sealed class CustomerReferralConfiguration : IEntityTypeConfiguration<Cus
         builder.Property(referral => referral.ReferrerRewardPoint).HasPrecision(18, 2).IsRequired();
         builder.Property(referral => referral.ReferredCustomerRewardPoint).HasPrecision(18, 2).IsRequired();
         builder.Property(referral => referral.CreatedOn).HasColumnName("CreatedDate");
+        builder.Property(referral => referral.QualifiedDate).HasColumnType("datetime2");
+        builder.Property(referral => referral.RewardProcessed).IsRequired().HasDefaultValue(false);
+        builder.Property(referral => referral.RewardedDate).HasColumnType("datetime2");
         builder.Ignore(referral => referral.IsActive);
         builder.Ignore(referral => referral.OnboardedOn);
         builder.HasIndex(referral => referral.ReferralCode).IsUnique();

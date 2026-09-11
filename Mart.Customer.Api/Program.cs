@@ -154,6 +154,16 @@ builder.Services.AddAuthorization(options =>
             .RequireClaim(MartTokenClaims.LoginType, "internalUser")
             .RequireRole("MA"));
 
+    options.AddPolicy(MartAuthorizationPolicies.FranchiseAdmin, policy =>
+        policy
+            .RequireAuthenticatedUser()
+            .RequireClaim(MartTokenClaims.LoginType, "internalUser")
+            .RequireRole(
+                MartAuthorizationPolicies.FranchiseAdminRole,
+                "FRENCHISE_ADMIN",
+                "FRANCHISE ADMIN",
+                "FRENCHISE ADMIN"));
+
     options.AddPolicy(MartAuthorizationPolicies.PendingPointsMartAdmin, policy =>
         policy
             .RequireAuthenticatedUser()

@@ -46,6 +46,8 @@ public sealed class CustomerOrder
     public bool IsPointsAwarded { get; private set; }
     public DateTime? PointsAwardedDate { get; private set; }
     public string? PointsAwardedBy { get; private set; }
+    public int Status { get; private set; }
+    public string? Remarks { get; private set; }
     public long CreatedBy { get; private set; }
     public DateTime CreatedOn { get; private set; }
     public IReadOnlyCollection<CustomerOrderItem> Items => _items;
@@ -150,6 +152,17 @@ public sealed class CustomerOrder
         IsPointsAwarded = true;
         PointsAwardedDate = awardedAt;
         PointsAwardedBy = awardedBy;
+    }
+
+    public void MarkStorePromotionAwarded()
+    {
+        if (Status == 1)
+        {
+            throw new InvalidOperationException("A store promotion has already been awarded for this order.");
+        }
+
+        Status = 1;
+        Remarks = "Store promotion awarded";
     }
 
     public void MarkInvoiceArchived(string archivePath)

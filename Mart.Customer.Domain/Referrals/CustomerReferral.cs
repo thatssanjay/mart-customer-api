@@ -6,6 +6,7 @@ public sealed class CustomerReferral
 {
     public const string WaitingStatus = "PENDING";
     public const string ActiveStatus = "ACTIVE";
+    public const string PaidStatus = "PAID";
 
     private CustomerReferral() { }
 
@@ -21,6 +22,9 @@ public sealed class CustomerReferral
     public long? ReferredCustomerId { get; private set; }
     public DateTime CreatedOn { get; private set; }
     public DateTime? OnboardedOn { get; private set; }
+    public DateTime? QualifiedDate { get; private set; }
+    public bool RewardProcessed { get; private set; }
+    public DateTime? RewardedDate { get; private set; }
     public bool IsActive { get; private set; }
 
     public static CustomerReferral Create(
@@ -59,7 +63,7 @@ public sealed class CustomerReferral
 
     public void MarkOnboarded(long referredCustomerId, DateTime onboardedOn)
     {
-        if (!IsActive || Status != WaitingStatus || ReferredCustomerId.HasValue)
+        if (Status != WaitingStatus || ReferredCustomerId.HasValue)
             throw new DomainException("Referral code is inactive or has already been used.");
         if (referredCustomerId <= 0) throw new DomainException("Referred customer is invalid.");
 
@@ -67,6 +71,17 @@ public sealed class CustomerReferral
         Status = ActiveStatus;
         OnboardedOn = onboardedOn;
         IsActive = false;
+    }
+
+    public void MarkRewardProcessed(DateTime processedOn)
+    {
+        if (Status != ActiveStatus || RewardProcessed || !ReferredCustomerId.HasValue)
+            throw new DomainException("Referral is not eligible for reward processing.");
+
+        Status = PaidStatus;
+        QualifiedDate = processedOn;
+        RewardProcessed = true;
+        RewardedDate = processedOn;
     }
 
     public static string NormalizeMobile(string value) =>

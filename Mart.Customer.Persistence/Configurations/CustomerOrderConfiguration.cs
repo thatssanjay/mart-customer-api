@@ -54,6 +54,8 @@ public sealed class CustomerOrderConfiguration : IEntityTypeConfiguration<Custom
         builder.Property(order => order.IsPointsAwarded).IsRequired().HasDefaultValue(false);
         builder.Property(order => order.PointsAwardedDate).HasColumnType("datetime2");
         builder.Property(order => order.PointsAwardedBy).HasMaxLength(10);
+        builder.Property(order => order.Status).IsRequired();
+        builder.Property(order => order.Remarks).HasMaxLength(500);
         builder.Property(order => order.CreatedBy).HasColumnName("CashierUserId");
         builder.Property(order => order.CustomerCodeSnapshot).HasMaxLength(50).IsUnicode(false);
         builder.Property(order => order.CustomerNameSnapshot).HasMaxLength(300);

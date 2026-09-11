@@ -7,6 +7,7 @@ using Mart.Customer.Domain.Subscriptions;
 using Mart.Customer.Domain.Wallets;
 using Mart.Customer.Domain.Orders;
 using Mart.Customer.Domain.Referrals;
+using Mart.Customer.Domain.Promotions;
 using CustomerEntity = Mart.Customer.Domain.Customers.Customer;
 using Mart.Customer.Persistence.MasterData;
 
@@ -80,6 +81,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<WalletOperation> WalletOperations => Set<WalletOperation>();
 
     public DbSet<WalletOperationComponent> WalletOperationComponents => Set<WalletOperationComponent>();
+
+    public DbSet<StorePromotion> StorePromotions => Set<StorePromotion>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {

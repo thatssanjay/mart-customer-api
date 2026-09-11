@@ -7,48 +7,41 @@ namespace Mart.Customer.Persistence.Repositories;
 
 internal sealed class CustomerReferralRepository(ApplicationDbContext dbContext) : ICustomerReferralRepository
 {
-    public Task<ReferralBenefitDto?> GetActiveBenefitAsync(
-        DateTime currentDate,
-        CancellationToken cancellationToken = default)
+    public Task<ReferralBenefitDto?> GetActiveBenefitAsync(CancellationToken cancellationToken = default)
     {
         return (from configuration in dbContext.ReferralConfigurations.AsNoTracking()
                 join wallet in dbContext.WalletTypes.AsNoTracking()
                     on configuration.RewardWalletTypeId equals wallet.Id
-                where configuration.IsActive &&
-                    configuration.StartDate <= currentDate &&
-                    (!configuration.EndDate.HasValue || configuration.EndDate >= currentDate)
+                    into wallets
+                from wallet in wallets.DefaultIfEmpty()
+                where configuration.IsActive
                 orderby configuration.StartDate descending, configuration.Id descending
                 select new ReferralBenefitDto(
                     configuration.Id,
                     configuration.MinimumPurchaseAmount,
                     configuration.ReferrerRewardPoint,
                     configuration.ReferredCustomerRewardPoint,
-                    wallet.Id,
-                    wallet.Name,
-                    wallet.Code))
+                    configuration.RewardWalletTypeId,
+                    wallet == null ? string.Empty : wallet.Name,
+                    wallet == null ? string.Empty : wallet.Code))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
     public Task<ReferralConfiguration?> GetActiveConfigurationAsync(
         int referralConfigId,
-        DateTime currentDate,
         CancellationToken cancellationToken = default) =>
         dbContext.ReferralConfigurations.AsNoTracking().SingleOrDefaultAsync(
             configuration => configuration.Id == referralConfigId &&
-                configuration.IsActive &&
-                configuration.StartDate <= currentDate &&
-                (!configuration.EndDate.HasValue || configuration.EndDate >= currentDate),
+                configuration.IsActive,
             cancellationToken);
 
     public Task<bool> ExistsForMobileAsync(
-        long referrerCustomerId,
         string mobileNumber,
         CancellationToken cancellationToken = default)
     {
         var mobile = CustomerReferral.NormalizeMobile(mobileNumber);
         return dbContext.CustomerReferrals.AsNoTracking().AnyAsync(
-            referral => referral.ReferrerCustomerId == referrerCustomerId &&
-                referral.ReferredMobileNumber == mobile,
+            referral => referral.ReferredMobileNumber == mobile,
             cancellationToken);
     }
 

@@ -15,17 +15,25 @@ public sealed class CustomerReferralRepositoryTests
     private static readonly DateTime CurrentDate = new(2026, 9, 10);
 
     [Fact]
-    public async Task GetActiveBenefitAsync_ReturnsConfiguredTermsAndIncludesDateBoundaries()
+    public async Task GetActiveBenefitAsync_ReturnsActiveConfigurationAndMapsAllBenefitFields()
     {
         await using var fixture = CreateFixture();
         AddWallet(fixture.Db, 4, true);
-        AddConfiguration(fixture.Db, 12, true, CurrentDate, CurrentDate, 500m, 75m, 25m, 4);
+        AddConfiguration(
+            fixture.Db,
+            12,
+            true,
+            CurrentDate.AddDays(10),
+            CurrentDate.AddDays(20),
+            500m,
+            75m,
+            25m,
+            4);
         AddConfiguration(fixture.Db, 13, false, CurrentDate.AddDays(-1), CurrentDate.AddDays(1), 1m, 1m, 1m, 4);
-        AddConfiguration(fixture.Db, 14, true, CurrentDate.AddDays(1), CurrentDate.AddDays(2), 1m, 1m, 1m, 4);
         await fixture.Db.SaveChangesAsync();
         fixture.Db.ChangeTracker.Clear();
 
-        var benefit = await fixture.Referrals.GetActiveBenefitAsync(CurrentDate);
+        var benefit = await fixture.Referrals.GetActiveBenefitAsync();
 
         Assert.NotNull(benefit);
         Assert.Equal(12, benefit.ReferralConfigId);
@@ -33,31 +41,94 @@ public sealed class CustomerReferralRepositoryTests
         Assert.Equal(75m, benefit.ReferrerRewardPoint);
         Assert.Equal(25m, benefit.ReferredCustomerRewardPoint);
         Assert.Equal(4, benefit.WalletTypeId);
+        Assert.Equal("Reward Wallet", benefit.WalletName);
+        Assert.Equal("REWARD", benefit.WalletCode);
     }
 
-    [Theory]
-    [InlineData(false, -1, 1)]
-    [InlineData(true, -2, -1)]
-    [InlineData(true, 1, 2)]
-    public async Task GetActiveConfigurationAsync_RejectsInactiveOrOutOfRangeConfiguration(
-        bool isActive,
-        int startOffset,
-        int endOffset)
+    [Fact]
+    public async Task GetActiveBenefitAsync_ReturnsNullWhenNoConfigurationIsActive()
     {
         await using var fixture = CreateFixture();
+        AddWallet(fixture.Db, 4, true);
         AddConfiguration(
             fixture.Db,
             12,
-            isActive,
-            CurrentDate.AddDays(startOffset),
-            CurrentDate.AddDays(endOffset),
+            false,
+            CurrentDate.AddDays(-1),
+            CurrentDate.AddDays(1),
             500m,
             75m,
             25m,
             4);
         await fixture.Db.SaveChangesAsync();
 
-        Assert.Null(await fixture.Referrals.GetActiveConfigurationAsync(12, CurrentDate));
+        Assert.Null(await fixture.Referrals.GetActiveBenefitAsync());
+    }
+
+    [Fact]
+    public async Task GetActiveBenefitAsync_ReturnsActiveConfigurationWhenWalletIsMissing()
+    {
+        await using var fixture = CreateFixture();
+        AddConfiguration(
+            fixture.Db,
+            12,
+            true,
+            CurrentDate,
+            null,
+            500m,
+            75m,
+            25m,
+            999);
+        await fixture.Db.SaveChangesAsync();
+
+        var benefit = await fixture.Referrals.GetActiveBenefitAsync();
+
+        Assert.NotNull(benefit);
+        Assert.Equal(12, benefit.ReferralConfigId);
+        Assert.Equal(999, benefit.WalletTypeId);
+        Assert.Empty(benefit.WalletName);
+        Assert.Empty(benefit.WalletCode);
+    }
+
+    [Fact]
+    public async Task GetActiveConfigurationAsync_RejectsInactiveConfiguration()
+    {
+        await using var fixture = CreateFixture();
+        AddConfiguration(
+            fixture.Db,
+            12,
+            false,
+            CurrentDate.AddDays(-1),
+            CurrentDate.AddDays(1),
+            500m,
+            75m,
+            25m,
+            4);
+        await fixture.Db.SaveChangesAsync();
+
+        Assert.Null(await fixture.Referrals.GetActiveConfigurationAsync(12));
+    }
+
+    [Fact]
+    public async Task GetActiveConfigurationAsync_ReturnsActiveConfigurationRegardlessOfDateRange()
+    {
+        await using var fixture = CreateFixture();
+        AddConfiguration(
+            fixture.Db,
+            12,
+            true,
+            CurrentDate.AddDays(10),
+            CurrentDate.AddDays(20),
+            500m,
+            75m,
+            25m,
+            4);
+        await fixture.Db.SaveChangesAsync();
+
+        var configuration = await fixture.Referrals.GetActiveConfigurationAsync(12);
+
+        Assert.NotNull(configuration);
+        Assert.True(configuration.IsActive);
     }
 
     [Fact]
@@ -93,22 +164,17 @@ public sealed class CustomerReferralRepositoryTests
         Assert.Equal(25m, referral.ReferredCustomerRewardPoint);
     }
 
-    [Theory]
-    [InlineData(false, -1, 1)]
-    [InlineData(true, -2, -1)]
-    public async Task CreateReferral_RejectsInactiveOrExpiredReferralConfigId(
-        bool isActive,
-        int startOffset,
-        int endOffset)
+    [Fact]
+    public async Task CreateReferral_RejectsInactiveReferralConfigId()
     {
         await using var fixture = CreateFixture();
         AddCustomer(fixture.Db, 7, "9000000007");
         AddConfiguration(
             fixture.Db,
             12,
-            isActive,
-            DateTime.UtcNow.Date.AddDays(startOffset),
-            DateTime.UtcNow.Date.AddDays(endOffset),
+            false,
+            DateTime.UtcNow.Date.AddDays(-1),
+            DateTime.UtcNow.Date.AddDays(1),
             500m,
             75m,
             25m,
@@ -145,6 +211,83 @@ public sealed class CustomerReferralRepositoryTests
         Assert.Equal("The referral offer is inactive or has expired.", error.Message);
         Assert.Empty(fixture.Db.CustomerReferrals);
     }
+
+    [Fact]
+    public async Task CreateReferral_RejectsExistingCustomerMobile()
+    {
+        await using var fixture = CreateFixture();
+        AddCustomer(fixture.Db, 7, "9000000007");
+        AddCustomer(fixture.Db, 8, "9876543210");
+        AddActiveConfiguration(fixture.Db);
+        await fixture.Db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<DomainException>(() => CreateReferralAsync(fixture));
+
+        Assert.Equal("This mobile number is already onboarded/referred.", error.Message);
+        Assert.Empty(fixture.Db.CustomerReferrals);
+    }
+
+    [Fact]
+    public async Task CreateReferral_RejectsMobileReferredByAnotherCustomer()
+    {
+        await using var fixture = CreateFixture();
+        AddCustomer(fixture.Db, 7, "9000000007");
+        AddCustomer(fixture.Db, 8, "9000000008");
+        AddActiveConfiguration(fixture.Db);
+        fixture.Db.CustomerReferrals.Add(CustomerReferral.Create(
+            8,
+            12,
+            500m,
+            75m,
+            25m,
+            "9876543210",
+            "MARTEXISTING",
+            DateTime.UtcNow.AddDays(-1)));
+        await fixture.Db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<DomainException>(() => CreateReferralAsync(fixture));
+
+        Assert.Equal("This mobile number is already onboarded/referred.", error.Message);
+        Assert.Single(fixture.Db.CustomerReferrals);
+    }
+
+    [Fact]
+    public async Task CreateReferral_AllowsNewMobile()
+    {
+        await using var fixture = CreateFixture();
+        AddCustomer(fixture.Db, 7, "9000000007");
+        AddActiveConfiguration(fixture.Db);
+        await fixture.Db.SaveChangesAsync();
+
+        var created = await CreateReferralAsync(fixture);
+
+        Assert.Equal("9876543210", created.ReferredMobileNumber);
+        Assert.Single(fixture.Db.CustomerReferrals);
+    }
+
+    private static Task<Mart.Customer.Application.Referrals.Dtos.CreatedCustomerReferralDto> CreateReferralAsync(
+        ReferralFixture fixture)
+    {
+        var handler = new CreateCustomerReferralCommandHandler(
+            fixture.Customers,
+            fixture.Referrals,
+            fixture.UnitOfWork);
+        return handler.Handle(
+            new CreateCustomerReferralCommand(7, "9876543210", 12),
+            CancellationToken.None);
+    }
+
+    private static void AddActiveConfiguration(ApplicationDbContext db) =>
+        AddConfiguration(
+            db,
+            12,
+            true,
+            DateTime.UtcNow.AddDays(10),
+            DateTime.UtcNow.AddDays(20),
+            500m,
+            75m,
+            25m,
+            4);
 
     private static ReferralFixture CreateFixture()
     {

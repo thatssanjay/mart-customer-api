@@ -23,3 +23,10 @@ public sealed record CreatedCustomerReferralDto(
     string ReferralCode,
     string Status,
     DateTime CreatedOn);
+
+public sealed record ProcessReferralRewardsResultDto(
+    int ActiveReferralCount,
+    int QualifiedReferralCount,
+    decimal ReferrerPointsCredited,
+    decimal ReferredCustomerPointsCredited,
+    DateTime ProcessedOn);

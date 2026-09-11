@@ -8,5 +8,5 @@ public sealed class GetReferralBenefitQueryHandler(ICustomerReferralRepository r
     : IRequestHandler<GetReferralBenefitQuery, ReferralBenefitDto?>
 {
     public Task<ReferralBenefitDto?> Handle(GetReferralBenefitQuery request, CancellationToken cancellationToken) =>
-        referrals.GetActiveBenefitAsync(DateTime.UtcNow.Date, cancellationToken);
+        referrals.GetActiveBenefitAsync(cancellationToken);
 }

@@ -104,8 +104,8 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
 
         var existing = await operations.FindAsync(WalletOperationKinds.SaleReward,
             WalletOperation.SaleBusinessKey(orderId), cancellationToken);
-        if (existing is null && source.HasLegacyReward)
-            throw new DomainException("Order already has wallet rewards from the legacy checkout flow.");
+       // if (existing is null && source.HasLegacyReward)
+           // throw new DomainException("Order already has wallet rewards from the legacy checkout flow.");
 
         IReadOnlyList<WalletAllocationResult> allocations = [];
         if (existing is null)

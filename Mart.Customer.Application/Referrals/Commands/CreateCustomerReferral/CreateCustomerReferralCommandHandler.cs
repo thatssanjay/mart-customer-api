@@ -26,15 +26,13 @@ public sealed class CreateCustomerReferralCommandHandler(
             ?? throw new DomainException("Customer not found.");
         var configuration = await referrals.GetActiveConfigurationAsync(
             request.ReferralConfigId,
-            DateTime.UtcNow.Date,
             cancellationToken);
         if (configuration is null)
             throw new DomainException("The referral offer is inactive or has expired.");
         var mobile = CustomerReferral.NormalizeMobile(request.ReferredMobileNumber);
-        if (mobile == CustomerReferral.NormalizeMobile(referrer.MobileNumber))
-            throw new DomainException("You cannot refer your own mobile number.");
-        if (await referrals.ExistsForMobileAsync(request.ReferrerCustomerId, mobile, cancellationToken))
-            throw new DomainException("You have already referred this mobile number.");
+        if (await customers.ExistsByMobileNumberAsync(mobile, cancellationToken) ||
+            await referrals.ExistsForMobileAsync(mobile, cancellationToken))
+            throw new DomainException("This mobile number is already onboarded/referred.");
 
         var code = await GenerateUniqueCodeAsync(cancellationToken);
         var referral = CustomerReferral.Create(
