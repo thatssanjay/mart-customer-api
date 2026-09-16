@@ -11,7 +11,7 @@ namespace Mart.Customer.Api.Controllers.V1;
 
 [ApiController]
 [ApiVersion(1.0)]
-[Authorize(Policy = MartAuthorizationPolicies.FranchiseAdmin)]
+//[Authorize(Policy = MartAuthorizationPolicies.FranchiseAdmin)]
 [Route("api/v{version:apiVersion}/store-promotions")]
 public sealed class StorePromotionsController(
     IStorePromotionService promotions,

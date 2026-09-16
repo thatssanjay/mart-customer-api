@@ -19,6 +19,8 @@ public sealed class CustomerOrderSqlServerMappingTests
         Assert.Contains("[TaxableAmount]", orderSql);
         Assert.Contains("[RedeemAmount]", orderSql);
         Assert.Contains("[RewardPointsEarned]", orderSql);
+        Assert.Contains("[IsPointsAwarded]", orderSql);
+        Assert.DoesNotContain("[IsRewardPointAwarded]", orderSql);
         Assert.Contains("[CashbackAmount]", orderSql);
         Assert.Contains("[CashierUserId]", orderSql);
         Assert.DoesNotContain("[GrossAmount]", orderSql);

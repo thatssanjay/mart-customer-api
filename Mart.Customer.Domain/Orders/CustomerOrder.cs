@@ -154,15 +154,21 @@ public sealed class CustomerOrder
         PointsAwardedBy = awardedBy;
     }
 
-    public void MarkStorePromotionAwarded()
+    public void MarkStorePromotionAwarded(string promoCode)
     {
         if (Status == 1)
         {
             throw new InvalidOperationException("A store promotion has already been awarded for this order.");
         }
 
+        if (string.IsNullOrWhiteSpace(promoCode))
+        {
+            throw new ArgumentException("Promo code is required.", nameof(promoCode));
+        }
+
         Status = 1;
-        Remarks = "Store promotion awarded";
+        IsPointsAwarded = true;
+        Remarks = $"{promoCode.Trim().ToUpperInvariant()} - Store promotion awarded";
     }
 
     public void MarkInvoiceArchived(string archivePath)

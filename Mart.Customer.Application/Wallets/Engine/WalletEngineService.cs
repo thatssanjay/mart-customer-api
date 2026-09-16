@@ -110,6 +110,7 @@ public sealed class WalletEngineService(IWalletOperationRepository operations, I
         IReadOnlyList<WalletAllocationResult> allocations = [];
         if (existing is null)
         {
+            
             var config = await orderSources.GetConfigurationAsync(source.StoreId, source.OrderedAt, cancellationToken)
                 ?? throw new DomainException("Active wallet reward configuration was not found for the order store.");
             allocations = await CalculateAllocationsAsync(source, config, cancellationToken);

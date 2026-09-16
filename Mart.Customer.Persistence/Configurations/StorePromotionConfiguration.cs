@@ -14,5 +14,6 @@ public sealed class StorePromotionConfiguration : IEntityTypeConfiguration<Store
         builder.Property(promotion => promotion.BonusPoint).HasPrecision(18, 2);
         builder.Property(promotion => promotion.DiscountType).HasMaxLength(30).IsUnicode(false).IsRequired();
         builder.Property(promotion => promotion.BillPercentDiscount).HasPrecision(5, 2);
+        builder.Property(promotion => promotion.Status).HasMaxLength(20).IsUnicode(false);
     }
 }

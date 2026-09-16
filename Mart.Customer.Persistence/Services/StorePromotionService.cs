@@ -35,16 +35,17 @@ internal sealed class StorePromotionService(
         var query = dbContext.CustomerOrders.AsNoTracking()
             .Where(order => order.FranchiseId == franchiseId &&
                             order.MartStoreId == storeId &&
-                            order.OrderDate >= start && order.OrderDate < end);
+                            order.OrderDate >= start && order.OrderDate < end &&
+                            order.Status != 1);
 
         if (!string.IsNullOrWhiteSpace(normalizedInvoiceNumber))
             query = query.Where(order => order.InvoiceNumber == normalizedInvoiceNumber);
         if (!string.IsNullOrWhiteSpace(normalizedMobile))
             query = query.Where(order => order.CustomerMobileSnapshot == normalizedMobile);
 
-        return await query
+        var projectedQuery = query
             .OrderByDescending(order => order.OrderDate)
-            .Take(25)
+            .ThenByDescending(order => order.CustomerOrderId)
             .Select(order => new PromotionOrderDto(
                 order.CustomerOrderId,
                 order.InvoiceNumber,
@@ -55,7 +56,18 @@ internal sealed class StorePromotionService(
                 order.FinalPayableAmount,
                 order.OrderStatus,
                 order.Status,
-                order.Remarks))
+                order.Remarks));
+
+        if (!string.IsNullOrWhiteSpace(normalizedMobile))
+        {
+            var latestEligibleOrder = await projectedQuery
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return latestEligibleOrder is null ? [] : [latestEligibleOrder];
+        }
+
+        return await projectedQuery
+            .Take(25)
             .ToListAsync(cancellationToken);
     }
 
@@ -76,6 +88,7 @@ internal sealed class StorePromotionService(
                 on promotion.WalletTypeId equals walletType.Id
             where store.FranchiseId == franchiseId && promotion.StoreId == storeId && promotion.IsActive &&
                   promotion.PromoCode != null &&
+                  (promotion.Status == null || promotion.Status != StorePromotionStatuses.Awarded) &&
                   promotion.StartDate <= now && promotion.EndDate >= now &&
                   walletType.IsActive
             orderby promotion.PromoCode
@@ -108,11 +121,12 @@ internal sealed class StorePromotionService(
 
         return unitOfWork.ExecuteInTransactionAsync(
             token => AllocateWithinTransactionAsync(
-                franchiseId, storeId, orderId, promoCode.Trim().ToUpperInvariant(), createdBy, token),
+                userId, franchiseId, storeId, orderId, promoCode.Trim().ToUpperInvariant(), createdBy, token),
             cancellationToken);
     }
 
     private async Task<PromotionAllocationDto> AllocateWithinTransactionAsync(
+        long userId,
         long franchiseId,
         long storeId,
         long orderId,
@@ -132,9 +146,11 @@ internal sealed class StorePromotionService(
         if (order.OrderDate < start || order.OrderDate >= end)
             throw new DomainException("Only today's orders are eligible for a store promotion.");
 
-        var promotion = await dbContext.StorePromotions.AsNoTracking().SingleOrDefaultAsync(
+        var promotion = await dbContext.StorePromotions.SingleOrDefaultAsync(
             item => item.StoreId == storeId && item.PromoCode == promoCode,
             cancellationToken) ?? throw new DomainException("Promo code is not valid for the current store.");
+        if (promotion.Status == StorePromotionStatuses.Awarded)
+            throw new DomainException("This promotion code has already been awarded.");
         if (!promotion.IsActive || promotion.StartDate > now || promotion.EndDate < now)
             throw new DomainException("Promo code is inactive or outside its validity period.");
 
@@ -173,7 +189,8 @@ internal sealed class StorePromotionService(
             string.IsNullOrWhiteSpace(createdBy) ? "Franchise Admin" : createdBy.Trim());
         var bucket = WalletBalanceBucket.Create(wallet.CustomerWalletId, transaction, amount, null, now);
 
-        order.MarkStorePromotionAwarded();
+        order.MarkStorePromotionAwarded(promoCode);
+        promotion.MarkAwarded(userId, order.CustomerId, now);
         await dbContext.WalletTransactions.AddAsync(transaction, cancellationToken);
         await dbContext.WalletBalanceBuckets.AddAsync(bucket, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

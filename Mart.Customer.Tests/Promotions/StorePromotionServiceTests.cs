@@ -37,7 +37,9 @@ public sealed class StorePromotionServiceTests
             CreatePromotion(4, "EXPIRED", 11, 3, StorePromotionDiscountTypes.TotalBonusPoint, 50m, null,
                 startDate: now.AddDays(-2), endDate: now.AddDays(-1)),
             CreatePromotion(5, "FUTURE", 11, 3, StorePromotionDiscountTypes.TotalBonusPoint, 50m, null,
-                startDate: now.AddDays(1), endDate: now.AddDays(2)));
+                startDate: now.AddDays(1), endDate: now.AddDays(2)),
+            CreatePromotion(6, "AWARDED", 11, 3, StorePromotionDiscountTypes.TotalBonusPoint, 50m, null,
+                status: StorePromotionStatuses.Awarded));
         await fixture.Db.SaveChangesAsync();
 
         var results = await fixture.Service.GetActivePromotionsAsync(7, 11);
@@ -63,6 +65,55 @@ public sealed class StorePromotionServiceTests
     }
 
     [Fact]
+    public async Task SearchTodayOrdersByMobileReturnsLatestEligibleOrderOnly()
+    {
+        await using var fixture = CreateFixture();
+        var olderEligible = CreateOrder(111, DateTime.UtcNow.Date.AddHours(2), 7, 11, "9876543210");
+        var latestEligible = CreateOrder(112, DateTime.UtcNow.Date.AddHours(3), 7, 11, "9876543210");
+        var alreadyAwarded = CreateOrder(113, DateTime.UtcNow.Date.AddHours(4), 7, 11, "9876543210");
+        alreadyAwarded.MarkStorePromotionAwarded("USED01");
+        fixture.Db.CustomerOrders.AddRange(olderEligible, latestEligible, alreadyAwarded);
+        await fixture.Db.SaveChangesAsync();
+
+        var results = await fixture.Service.SearchTodayOrdersAsync(7, 11, null, "9876543210");
+
+        Assert.Equal(latestEligible.CustomerOrderId, Assert.Single(results).CustomerOrderId);
+    }
+
+    [Fact]
+    public async Task SearchTodayOrdersByInvoiceNumberExcludesAlreadyAwardedOrder()
+    {
+        await using var fixture = CreateFixture();
+        var order = CreateOrder(121, DateTime.UtcNow.Date.AddHours(2), 7, 11, "9876543210");
+        order.MarkStorePromotionAwarded("USED01");
+        fixture.Db.CustomerOrders.Add(order);
+        await fixture.Db.SaveChangesAsync();
+
+        var results = await fixture.Service.SearchTodayOrdersAsync(7, 11, order.InvoiceNumber, null);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task SearchTodayOrdersByInvoiceNumberPreservesLeadingZeros()
+    {
+        await using var fixture = CreateFixture();
+        var order = CreateOrder(
+            122,
+            DateTime.UtcNow.Date.AddHours(3),
+            7,
+            11,
+            "9876543210",
+            invoiceNumber: "000003");
+        fixture.Db.CustomerOrders.Add(order);
+        await fixture.Db.SaveChangesAsync();
+
+        var results = await fixture.Service.SearchTodayOrdersAsync(7, 11, "000003", null);
+
+        Assert.Equal(order.CustomerOrderId, Assert.Single(results).CustomerOrderId);
+    }
+
+    [Fact]
     public async Task AllocateCreditsConfiguredWalletAndUpdatesOrderOnce()
     {
         await using var fixture = CreateFixture();
@@ -83,7 +134,13 @@ public sealed class StorePromotionServiceTests
         Assert.Single(await fixture.Db.WalletBalanceBuckets.AsNoTracking().ToListAsync());
         var persistedOrder = await fixture.Db.CustomerOrders.AsNoTracking().SingleAsync();
         Assert.Equal(1, persistedOrder.Status);
-        Assert.Equal("Store promotion awarded", persistedOrder.Remarks);
+        Assert.True(persistedOrder.IsPointsAwarded);
+        Assert.Equal("PROMO123 - Store promotion awarded", persistedOrder.Remarks);
+        var persistedPromotion = await fixture.Db.StorePromotions.AsNoTracking().SingleAsync();
+        Assert.Equal(41, persistedPromotion.UsedBy);
+        Assert.NotNull(persistedPromotion.UsedOn);
+        Assert.Equal(StorePromotionStatuses.Awarded, persistedPromotion.Status);
+        Assert.Equal(order.CustomerId, persistedPromotion.CustomerId);
 
         var duplicate = await Assert.ThrowsAsync<DomainException>(() =>
             fixture.Service.AllocateAsync(41, 7, 11, order.CustomerOrderId, "PROMO123", "Admin"));
@@ -102,7 +159,28 @@ public sealed class StorePromotionServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             fixture.Service.AllocateAsync(41, 7, 11, order.CustomerOrderId, "PROMO123", "Admin"));
         Assert.Empty(await fixture.Db.WalletTransactions.AsNoTracking().ToListAsync());
-        Assert.Equal(0, (await fixture.Db.CustomerOrders.AsNoTracking().SingleAsync()).Status);
+        var persistedOrder = await fixture.Db.CustomerOrders.AsNoTracking().SingleAsync();
+        Assert.Equal(0, persistedOrder.Status);
+        Assert.False(persistedOrder.IsPointsAwarded);
+        Assert.Null(persistedOrder.Remarks);
+    }
+
+    [Fact]
+    public async Task AllocateFailureDoesNotMarkRewardPointsOrChangeRemarks()
+    {
+        await using var fixture = CreateFixture();
+        var order = CreateOrder(311, DateTime.UtcNow.Date.AddHours(2), 7, 11, "9876543210");
+        fixture.Db.CustomerOrders.Add(order);
+        await fixture.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DomainException>(() =>
+            fixture.Service.AllocateAsync(41, 7, 11, order.CustomerOrderId, "MISSING", "Admin"));
+
+        var persistedOrder = await fixture.Db.CustomerOrders.AsNoTracking().SingleAsync();
+        Assert.Equal(0, persistedOrder.Status);
+        Assert.False(persistedOrder.IsPointsAwarded);
+        Assert.Null(persistedOrder.Remarks);
+        Assert.Empty(await fixture.Db.WalletTransactions.AsNoTracking().ToListAsync());
     }
 
     private static PromotionFixture CreateFixture()
@@ -138,11 +216,12 @@ public sealed class StorePromotionServiceTests
         long franchiseId,
         long storeId,
         string mobile,
-        decimal amount = 118m)
+        decimal amount = 118m,
+        string? invoiceNumber = null)
     {
         var order = CustomerOrder.Create(
             cartId,
-            $"INV-PROMO-{cartId}",
+            invoiceNumber ?? $"INV-PROMO-{cartId}",
             cartId + 1000,
             franchiseId,
             storeId,
@@ -192,7 +271,8 @@ public sealed class StorePromotionServiceTests
         decimal? percent,
         bool isActive = true,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        string? status = null)
     {
         var promotion = (StorePromotion)Activator.CreateInstance(typeof(StorePromotion), nonPublic: true)!;
         Set(promotion, nameof(StorePromotion.Id), id);
@@ -205,6 +285,7 @@ public sealed class StorePromotionServiceTests
         Set(promotion, nameof(StorePromotion.StartDate), startDate ?? DateTime.UtcNow.AddDays(-1));
         Set(promotion, nameof(StorePromotion.EndDate), endDate ?? DateTime.UtcNow.AddDays(1));
         Set(promotion, nameof(StorePromotion.IsActive), isActive);
+        Set(promotion, nameof(StorePromotion.Status), status);
         return promotion;
     }
 
