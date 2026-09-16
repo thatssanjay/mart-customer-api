@@ -19,25 +19,26 @@ internal sealed class StorePromotionService(
     public async Task<IReadOnlyList<PromotionOrderDto>> SearchTodayOrdersAsync(
         long franchiseId,
         long storeId,
-        long? orderId,
+        string? invoiceNumber,
         string? mobileNumber,
         CancellationToken cancellationToken = default)
     {
         if (franchiseId <= 0 || storeId <= 0)
             throw new DomainException("A valid franchise and store assignment is required.");
-        if (orderId is null && string.IsNullOrWhiteSpace(mobileNumber))
-            throw new DomainException("Enter an order ID or customer mobile number.");
+        if (string.IsNullOrWhiteSpace(invoiceNumber) && string.IsNullOrWhiteSpace(mobileNumber))
+            throw new DomainException("Enter an invoice number or customer mobile number.");
 
         var start = DateTime.UtcNow.Date;
         var end = start.AddDays(1);
+        var normalizedInvoiceNumber = invoiceNumber?.Trim();
         var normalizedMobile = mobileNumber?.Trim();
         var query = dbContext.CustomerOrders.AsNoTracking()
             .Where(order => order.FranchiseId == franchiseId &&
                             order.MartStoreId == storeId &&
                             order.OrderDate >= start && order.OrderDate < end);
 
-        if (orderId.HasValue)
-            query = query.Where(order => order.CustomerOrderId == orderId.Value);
+        if (!string.IsNullOrWhiteSpace(normalizedInvoiceNumber))
+            query = query.Where(order => order.InvoiceNumber == normalizedInvoiceNumber);
         if (!string.IsNullOrWhiteSpace(normalizedMobile))
             query = query.Where(order => order.CustomerMobileSnapshot == normalizedMobile);
 

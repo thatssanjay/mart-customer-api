@@ -20,7 +20,7 @@ public sealed class StorePromotionsController(
 {
     [HttpGet("orders/search")]
     public async Task<IActionResult> SearchTodayOrders(
-        [FromQuery] long? orderId,
+        [FromQuery] string? invoiceNumber,
         [FromQuery] string? mobileNumber,
         CancellationToken cancellationToken)
     {
@@ -28,7 +28,7 @@ public sealed class StorePromotionsController(
         return Ok(await promotions.SearchTodayOrdersAsync(
             scope.FranchiseId,
             scope.StoreId,
-            orderId,
+            invoiceNumber,
             mobileNumber,
             cancellationToken));
     }

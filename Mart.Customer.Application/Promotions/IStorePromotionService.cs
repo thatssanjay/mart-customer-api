@@ -5,7 +5,7 @@ public interface IStorePromotionService
     Task<IReadOnlyList<PromotionOrderDto>> SearchTodayOrdersAsync(
         long franchiseId,
         long storeId,
-        long? orderId,
+        string? invoiceNumber,
         string? mobileNumber,
         CancellationToken cancellationToken = default);
 
